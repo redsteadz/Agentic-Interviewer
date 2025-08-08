@@ -85,7 +85,7 @@ const LoggedInView = ({ user }) => {
     );
 };
 
-export const LoggedOutView = ({ title = 'Django React Auth' }) => {
+export const LoggedOutView = ({ title = 'Callio' }) => {
     return (
         <div className="max-w-2xl mx-auto space-y-8 text-center mt-10">
             <div className="space-y-4">
@@ -93,7 +93,7 @@ export const LoggedOutView = ({ title = 'Django React Auth' }) => {
                     {title}
                 </h1>
                 <p className="text-xl text-muted-foreground flex items-center justify-center gap-2">
-                    A modern authentication system built with Django and React
+                    A modern agentic call interviewer system
                 </p>
             </div>
 
@@ -131,6 +131,12 @@ export const LoggedOutView = ({ title = 'Django React Auth' }) => {
                 </CardHeader>
                 <CardContent>
                     <ul className="text-sm text-muted-foreground space-y-2 text-left">
+                                                <li className="flex items-center gap-2">
+                            Agentic call interviewer system
+                        </li>
+                                                <li className="flex items-center gap-2">
+                            User registration and login
+                        </li>
                         <li className="flex items-center gap-2">
                             Secure JWT authentication
                         </li>

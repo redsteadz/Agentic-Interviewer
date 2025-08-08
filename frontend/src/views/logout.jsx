@@ -66,7 +66,7 @@ const Logout = () => {
                     <div className="space-y-4">
                         <h1 className="text-xl">Successfully Logged Out</h1>
                         <p className="text-2xl sm:text-3xl text-muted-foreground flex items-center justify-center gap-3 max-w-3xl mx-auto leading-relaxed">
-                            Thank you for using Django React Auth
+                            Thank you for using Callio
                         </p>
                     </div>
                     <div className="w-24 h-1 bg-gradient-to-r from-primary/50 to-primary mx-auto rounded-full"></div>

@@ -4,7 +4,7 @@ const Footer = () => {
             <div className="container mx-auto flex h-14 max-w-screen-2xl items-center justify-center">
                 <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                     <span className="flex items-center gap-2">
-                        {new Date().getFullYear()} Django React Auth. All rights
+                        {new Date().getFullYear()} Callio. All rights
                         reserved.
                     </span>
                 </div>
