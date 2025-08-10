@@ -8,6 +8,7 @@ import Logout from './views/logout';
 import Private from './views/private';
 import Register from './views/register';
 import Dashboard from './views/dashboard';
+import InterviewDashboard from './views/interview';
 
 function App() {
     return (
@@ -28,6 +29,7 @@ function App() {
                         }
                     />
                     <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+                    <Route path="/interview" element={<PrivateRoute><InterviewDashboard /></PrivateRoute>} />
                     <Route path="/" element={<Home />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/register" element={<Register />} />

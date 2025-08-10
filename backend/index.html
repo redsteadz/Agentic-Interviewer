@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Professional Interview Assistant</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body {
+            padding-top: 20px;
+        }
+        .container {
+            max-width: 800px;
+        }
+        .api-config-section {
+            margin-top: 40px;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+        .api-config-section h2 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .form-group label {
+            font-weight: bold;
+        }
+        .status-message {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .status-message.success {
+            background-color: #d4edda;
+            color: #155724;
+            border-color: #c3e6cb;
+        }
+        .status-message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-color: #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mb-4">🎤 Professional Interview Assistant</h1>
+        <p class="lead">AI-powered interview system with custom knowledge base and professional voice</p>
+
+        <div class="api-config-section">
+            <h2>API Configuration</h2>
+            <form id="apiConfigForm">
+                <div class="form-group">
+                    <label for="twilioAccountSid">Twilio Account SID:</label>
+                    <input type="text" class="form-control" id="twilioAccountSid" placeholder="Enter Twilio Account SID">
+                </div>
+                <div class="form-group">
+                    <label for="twilioAuthToken">Twilio Auth Token:</label>
+                    <input type="password" class="form-control" id="twilioAuthToken" placeholder="Enter Twilio Auth Token">
+                </div>
+                <div class="form-group">
+                    <label for="vapiApiKey">Vapi API Key:</label>
+                    <input type="password" class="form-control" id="vapiApiKey" placeholder="Enter Vapi API Key">
+                </div>
+                <button type="submit" class="btn btn-primary">Save Configuration</button>
+                <button type="button" class="btn btn-secondary" id="clearConfigBtn">Clear Configuration</button>
+            </form>
+            <div id="configStatus" class="mt-3"></div>
+            <div id="configMessage" class="status-message" style="display: none;"></div>
+        </div>
+        
+        <!-- Interview Assistant Configuration -->
+        <div class="api-config-section">
+            <h2>📋 Configure Interview Assistant</h2>
+            <form id="assistantForm">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="assistantName">Interviewer Name:</label>
+                            <input type="text" class="form-control" id="assistantName" placeholder="Professional Interviewer" value="Professional Interviewer">
+                        </div>
+                        <div class="form-group">
+                            <label for="firstMessage">Opening Statement:</label>
+                            <input type="text" class="form-control" id="firstMessage" placeholder="Good day, I'll be conducting your interview today." value="Good day, I'll be conducting your interview today. Let's begin.">
+                        </div>
+                        <div class="form-group">
+                            <label for="voiceProvider">Voice Provider:</label>
+                            <select class="form-control" id="voiceProvider">
+                                <option value="openai">OpenAI (Recommended)</option>
+                                <option value="11labs">ElevenLabs</option>
+                                <option value="playht">Play.ht</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="voiceId">Voice Selection:</label>
+                            <select class="form-control" id="voiceId">
+                                <option value="nova">Nova (Professional Female)</option>
+                                <option value="onyx">Onyx (Professional Male)</option>
+                                <option value="alloy">Alloy (Neutral)</option>
+                                <option value="echo">Echo (Clear)</option>
+                                <option value="fable">Fable (Warm)</option>
+                                <option value="shimmer">Shimmer (Gentle)</option>
+                            </select>
+                            <small class="form-text text-muted">Choose a professional voice for serious interviews</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="knowledgeText">📝 Interview Knowledge Base (Text):</label>
+                            <textarea class="form-control" id="knowledgeText" rows="6" placeholder="Enter interview topics, company information, role requirements, or specific areas to focus on during the interview..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="knowledgeUrls">🔗 Reference URLs (one per line):</label>
+                            <textarea class="form-control" id="knowledgeUrls" rows="4" placeholder="https://company.com/about&#10;https://company.com/careers&#10;https://docs.company.com/role-description"></textarea>
+                            <small class="form-text text-muted">Add URLs for additional context (company website, job descriptions, etc.)</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="modelProvider">AI Model:</label>
+                    <select class="form-control" id="modelProvider">
+                        <option value="openai">OpenAI GPT-4 (Recommended for interviews)</option>
+                        <option value="anthropic">Anthropic Claude</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-success btn-lg">🚀 Create Professional Interviewer</button>
+            </form>
+            <div id="assistantResult" class="mt-3"></div>
+        </div>
+        
+        <!-- Phone Number Management -->
+        <div class="api-config-section">
+            <h2>Phone Number Management</h2>
+            <button type="button" class="btn btn-info" id="listPhoneNumbers">List Vapi Phone Numbers</button>
+            <button type="button" class="btn btn-success" id="listTwilioNumbers">Show My Twilio Numbers</button>
+            <div id="phoneNumbersResult" class="mt-3"></div>
+        </div>
+        
+        <!-- Interview Call Form -->
+        <div class="row">
+            <div class="col-md-6">
+                <div class="call-form">
+                    <div class="card border-primary">
+                        <div class="card-header bg-primary text-white">
+                            <h3>📞 Start Interview Call</h3>
+                        </div>
+                        <div class="card-body">
+                            <form id="callForm">
+                                <div class="mb-3">
+                                    <label for="customerNumber" class="form-label">📱 Interviewee Phone Number</label>
+                                    <input type="tel" class="form-control" id="customerNumber" placeholder="+1-555-123-4567" required>
+                                    <small class="form-text text-muted">Enter the candidate's phone number for the interview</small>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="twilioPhoneNumberId" class="form-label">📞 Your Phone Number (Vapi ID)</label>
+                                    <input type="text" class="form-control" id="twilioPhoneNumberId" placeholder="Auto-filled from registration" readonly style="background-color: #f8f9fa;">
+                                    <small class="form-text text-muted">Automatically filled after registering your Twilio number</small>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="vapiAssistantId" class="form-label">🎤 Interview Assistant ID</label>
+                                    <input type="text" class="form-control" id="vapiAssistantId" placeholder="Auto-filled from assistant creation" readonly style="background-color: #f8f9fa;">
+                                    <small class="form-text text-muted">Automatically filled after creating your interviewer</small>
+                                </div>
+                                
+                                <button type="submit" class="btn btn-success btn-lg w-100">
+                                    🚀 Begin Professional Interview
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            
+        </div>
+        
+        <!-- Call Status -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div id="statusCard" class="card status-card" style="display: none;">
+                    <div class="card-header">
+                        <h3>Call Status & Details</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="statusContent"></div>
+                        <div id="callDetails" style="display: none; margin-top: 15px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background-color: #f9f9f9;">
+                            <h5>Call Information</h5>
+                            <div id="callInfo"></div>
+                            <div id="transcriptSection" style="display: none; margin-top: 15px;">
+                                <h5>Call Transcript</h5>
+                                <div id="transcriptContent" style="background: white; padding: 10px; border: 1px solid #ccc; border-radius: 3px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; font-family: monospace;"></div>
+                            </div>
+                        </div>
+                        <button id="refreshStatus" class="btn btn-outline-primary mt-2">Get Call Details</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentCallId = null;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            loadApiConfigStatus(); 
+        });
+
+        document.getElementById('apiConfigForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const twilioAccountSid = document.getElementById('twilioAccountSid').value;
+            const twilioAuthToken = document.getElementById('twilioAuthToken').value;
+            const vapiApiKey = document.getElementById('vapiApiKey').value;
+            
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Saving...';
+            
+            const messageDiv = document.getElementById('configMessage');
+            messageDiv.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        twilio_account_sid: twilioAccountSid,
+                        twilio_auth_token: twilioAuthToken,
+                        vapi_api_key: vapiApiKey
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    messageDiv.className = 'status-message success';
+                    messageDiv.textContent = 'API Configuration saved and tested successfully!';
+                    loadApiConfigStatus();
+                } else {
+                    messageDiv.className = 'status-message error';
+                    messageDiv.textContent = 'Error saving API Configuration: ' + result.errors.join(', ');
+                }
+                messageDiv.style.display = 'block';
+            } catch (error) {
+                messageDiv.className = 'status-message error';
+                messageDiv.textContent = `Error: ${error.message}`;
+                messageDiv.style.display = 'block';
+            }
+            
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Save Configuration';
+        });
+
+        document.getElementById('assistantForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const name = document.getElementById('assistantName').value || 'Professional Interviewer';
+            const firstMessage = document.getElementById('firstMessage').value || 'Good day, I\'ll be conducting your interview today. Let\'s begin.';
+            const voiceProvider = document.getElementById('voiceProvider').value || 'openai';
+            const voiceId = document.getElementById('voiceId').value || 'nova';
+            const modelProvider = document.getElementById('modelProvider').value || 'openai';
+            const model = 'gpt-4'; // Fixed to GPT-4 for best interview performance
+            const knowledgeText = document.getElementById('knowledgeText').value || '';
+            const knowledgeUrls = document.getElementById('knowledgeUrls').value || '';
+            
+            console.log('Form values:', { name, firstMessage, voiceProvider, voiceId, modelProvider, model });
+            
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Creating...';
+            
+            const resultDiv = document.getElementById('assistantResult');
+            
+            try {
+                const response = await fetch('/api/create-assistant', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        first_message: firstMessage,
+                        voice_provider: voiceProvider,
+                        voice_id: voiceId,
+                        model_provider: modelProvider,
+                        model: model,
+                        knowledge_text: knowledgeText,
+                        knowledge_urls: knowledgeUrls
+                    })
+                });
+                
+                const result = await response.json();
+                console.log('API Response:', result);
+                
+                if (result.success && result.assistant_data) {
+                    const assistantData = result.assistant_data;
+                    const assistantId = assistantData.id || assistantData._id || 'Unknown';
+                    const assistantName = assistantData.name || name;
+                    
+                    resultDiv.innerHTML = `
+                        <div class="status-message success">
+                            <strong>🎉 Professional Interviewer Created Successfully!</strong><br>
+                            <strong>Assistant ID:</strong> ${assistantId}<br>
+                            <strong>Interviewer Name:</strong> ${assistantName}<br>
+                            <strong>Knowledge Base:</strong> ${knowledgeText || knowledgeUrls ? 'Configured' : 'General Interview Mode'}<br>
+                            <strong>Voice:</strong> ${voiceId} (${voiceProvider})<br>
+                            <em>✅ Ready to conduct professional interviews</em>
+                        </div>
+                    `;
+                    
+                    if (assistantId && assistantId !== 'Unknown') {
+                        document.getElementById('vapiAssistantId').value = assistantId;
+                    }
+                } else {
+                    const errorMsg = result.error || 'Unknown error occurred';
+                    resultDiv.innerHTML = `
+                        <div class="status-message error">
+                            <strong>Error:</strong> ${errorMsg}<br>
+                            <strong>Debug Info:</strong> ${JSON.stringify(result, null, 2)}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="status-message error">Error: ${error.message}</div>`;
+            }
+            
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Create Assistant';
+        });
+
+        document.getElementById('listPhoneNumbers').addEventListener('click', async function() {
+            const btn = this;
+            btn.disabled = true;
+            btn.textContent = 'Loading...';
+            
+            const resultDiv = document.getElementById('phoneNumbersResult');
+            
+            try {
+                const response = await fetch('/api/phone-numbers');
+                const result = await response.json();
+                
+                if (result.success) {
+                    if (result.phone_numbers.length === 0) {
+                        resultDiv.innerHTML = '<div class="status-message">No phone numbers found. Create one first.</div>';
+                    } else {
+                        let html = '<div class="status-message success"><strong>Available Phone Numbers:</strong><br>';
+                        result.phone_numbers.forEach(pn => {
+                            html += `<strong>ID:</strong> ${pn.id} | <strong>Number:</strong> ${pn.number}<br>`;
+                        });
+                        html += '<em>Copy the Phone Number ID for making calls</em></div>';
+                        resultDiv.innerHTML = html;
+                        
+                        if (result.phone_numbers.length > 0) {
+                            document.getElementById('twilioPhoneNumberId').value = result.phone_numbers[0].id;
+                        }
+                    }
+                } else {
+                    resultDiv.innerHTML = `<div class="status-message error">Error: ${result.error}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="status-message error">Error: ${error.message}</div>`;
+            }
+            
+            btn.disabled = false;
+            btn.textContent = 'List Phone Numbers';
+        });
+
+        document.getElementById('listTwilioNumbers').addEventListener('click', async function() {
+            const btn = this;
+            btn.disabled = true;
+            btn.textContent = 'Loading...';
+            
+            const resultDiv = document.getElementById('phoneNumbersResult');
+            
+            try {
+                const response = await fetch('/api/twilio-numbers');
+                const result = await response.json();
+                
+                if (result.success) {
+                    if (result.twilio_numbers.length === 0) {
+                        resultDiv.innerHTML = '<div class="status-message">No Twilio numbers found.</div>';
+                    } else {
+                        let html = '<div class="status-message success"><strong>Your Twilio Numbers:</strong><br><br>';
+                        result.twilio_numbers.forEach(number => {
+                            const capabilities = Object.entries(number.capabilities)
+                                .filter(([key, value]) => value)
+                                .map(([key, value]) => key.toUpperCase())
+                                .join(', ');
+                            
+                            html += `
+                                <div style="border: 1px solid #ddd; padding: 10px; margin: 5px 0; border-radius: 5px;">
+                                    <strong>Number:</strong> ${number.phone_number}<br>
+                                    <strong>Name:</strong> ${number.friendly_name}<br>
+                                    <strong>Capabilities:</strong> ${capabilities}<br>
+                                    <button class="btn btn-sm btn-primary mt-2" onclick="registerWithVapi('${number.phone_number}')">
+                                        Register with Vapi
+                                    </button>
+                                </div>
+                            `;
+                        });
+                        html += '</div>';
+                        resultDiv.innerHTML = html;
+                    }
+                } else {
+                    resultDiv.innerHTML = `<div class="status-message error">Error: ${result.error}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="status-message error">Error: ${error.message}</div>`;
+            }
+            
+            btn.disabled = false;
+            btn.textContent = 'Show My Twilio Numbers';
+        });
+
+        document.getElementById('clearConfigBtn').addEventListener('click', async function() {
+            const messageDiv = document.getElementById('configMessage');
+            messageDiv.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/clear-config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    messageDiv.className = 'status-message success';
+                    messageDiv.textContent = 'API Configuration cleared successfully!';
+                    document.getElementById('twilioAccountSid').value = '';
+                    document.getElementById('twilioAuthToken').value = '';
+                    document.getElementById('vapiApiKey').value = '';
+                    loadApiConfigStatus();
+                } else {
+                    messageDiv.className = 'status-message error';
+                    messageDiv.textContent = 'Error clearing API Configuration.';
+                }
+                messageDiv.style.display = 'block';
+            } catch (error) {
+                messageDiv.className = 'status-message error';
+                messageDiv.textContent = `Error: ${error.message}`;
+                messageDiv.style.display = 'block';
+            }
+        });
+
+        async function loadApiConfigStatus() {
+            try {
+                const response = await fetch('/api/config');
+                const config = await response.json();
+                
+                const statusDiv = document.getElementById('configStatus');
+                statusDiv.innerHTML = `
+                    <p>Twilio Configured: <span class="badge ${config.twilio_configured ? 'bg-success' : 'bg-danger'}">${config.twilio_configured ? 'Yes' : 'No'}</span></p>
+                    <p>Vapi Configured: <span class="badge ${config.vapi_configured ? 'bg-success' : 'bg-danger'}">${config.vapi_configured ? 'Yes' : 'No'}</span></p>
+                `;
+                
+                if (config.twilio_account_sid) {
+                    document.getElementById('twilioAccountSid').value = config.twilio_account_sid;
+                }
+            } catch (error) {
+                console.error('Error loading API config status:', error);
+            }
+        }
+
+        document.getElementById('callForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const customerNumber = document.getElementById('customerNumber').value;
+            const twilioPhoneNumberId = document.getElementById('twilioPhoneNumberId').value;
+            const vapiAssistantId = document.getElementById('vapiAssistantId').value;
+            
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Making Call...';
+            
+            try {
+                const response = await fetch('/api/make-call', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        customer_number: customerNumber,
+                        twilio_phone_number_id: twilioPhoneNumberId,
+                        vapi_assistant_id: vapiAssistantId
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentCallId = result.call_id; 
+                    showStatus(`Call initiated successfully! Vapi Call ID: ${result.call_id}`, 'success'); 
+                    document.getElementById('statusCard').style.display = 'block';
+                    
+                    updateCallStatus();
+                    
+                    startAutoRefresh();
+                } else {
+                    showStatus(`Error: ${result.error}`, 'danger');
+                }
+            } catch (error) {
+                showStatus(`Error: ${error.message}`, 'danger');
+            }
+            
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Make Call';
+        });
+
+        
+
+        document.getElementById('refreshStatus').addEventListener('click', updateCallStatus);
+
+        async function updateCallStatus() {
+            if (!currentCallId) return;
+            
+            try {
+                const response = await fetch(`/api/get-call?call_id=${currentCallId}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    const call = result.call;
+                    
+                    const outcomeHtml = call.outcome ? `
+                        <p><strong>Call Outcome:</strong> 
+                            <span class="badge badge-${getOutcomeColor(call.outcome.status)}">${call.outcome.status.toUpperCase()}</span>
+                            <br><small>${call.outcome.description}</small>
+                        </p>
+                    ` : '';
+                    
+                    const callInfoHtml = `
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>Call ID:</strong> ${call.id}</p>
+                                <p><strong>Status:</strong> <span class="badge badge-${getStatusColor(call.status)}">${call.status || 'Unknown'}</span></p>
+                                ${outcomeHtml}
+                                <p><strong>Customer:</strong> ${call.customer || 'N/A'}</p>
+                                <p><strong>Phone Number:</strong> ${call.phoneNumber || 'N/A'}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>Created:</strong> ${call.createdAt ? new Date(call.createdAt).toLocaleString() : 'N/A'}</p>
+                                <p><strong>Started:</strong> ${call.startedAt ? new Date(call.startedAt).toLocaleString() : 'N/A'}</p>
+                                <p><strong>Ended:</strong> ${call.endedAt ? new Date(call.endedAt).toLocaleString() : 'N/A'}</p>
+                                <p><strong>Duration:</strong> ${call.duration_formatted || 'N/A'}</p>
+                                <p><strong>Cost:</strong> ${call.cost ? '$' + call.cost.toFixed(4) : 'N/A'}</p>
+                                ${call.endReason ? `<p><strong>End Reason:</strong> ${call.endReason}</p>` : ''}
+                            </div>
+                        </div>
+                    `;
+                    
+                    document.getElementById('callInfo').innerHTML = callInfoHtml;
+                    document.getElementById('callDetails').style.display = 'block';
+                    
+                    if (call.transcript_text && call.transcript_text.trim()) {
+                        document.getElementById('transcriptContent').textContent = call.transcript_text;
+                        document.getElementById('transcriptSection').style.display = 'block';
+                    } else if (call.status === 'ended') {
+                        document.getElementById('transcriptContent').textContent = 'No transcript available for this call.';
+                        document.getElementById('transcriptSection').style.display = 'block';
+                    } else {
+                        document.getElementById('transcriptSection').style.display = 'none';
+                    }
+                    
+                    const statusAlert = call.outcome ? 
+                        `alert-${getOutcomeColor(call.outcome.status) === 'danger' ? 'danger' : 
+                          getOutcomeColor(call.outcome.status) === 'warning' ? 'warning' : 
+                          getOutcomeColor(call.outcome.status) === 'success' ? 'success' : 'info'}` 
+                        : 'alert-info';
+                    
+                    document.getElementById('statusContent').innerHTML = `
+                        <div class="${statusAlert}">
+                            <strong>Call Status:</strong> ${call.status || 'Unknown'}
+                            ${call.outcome ? `<br><strong>Outcome:</strong> ${call.outcome.description}` : ''}
+                            ${call.status === 'in-progress' ? '<br><small>Call is active. Transcript will be available after the call ends.</small>' : ''}
+                        </div>
+                    `;
+                    
+                } else {
+                    document.getElementById('statusContent').innerHTML = `
+                        <div class="alert alert-warning">
+                            <strong>Call ID:</strong> ${currentCallId}<br>
+                            <strong>Status:</strong> Unable to fetch details - ${result.error}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('statusContent').innerHTML = `
+                    <div class="alert alert-danger">
+                        <strong>Error fetching call details:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+        
+        function getStatusColor(status) {
+            switch(status) {
+                case 'ended': return 'success';
+                case 'in-progress': return 'warning';
+                case 'queued': return 'info';
+                case 'ringing': return 'info';
+                case 'failed': return 'danger';
+                default: return 'secondary';
+            }
+        }
+        
+        function getOutcomeColor(outcome) {
+            switch(outcome) {
+                case 'answered': return 'success';
+                case 'answered-brief': return 'info';
+                case 'brief-answer': return 'info';
+                case 'completed': return 'success';
+                case 'voicemail': return 'secondary';
+                case 'no-answer': return 'warning';
+                case 'busy': return 'warning';
+                case 'declined': return 'warning';
+                case 'failed': return 'danger';
+                case 'in-progress': return 'primary';
+                case 'ringing': return 'info';
+                default: return 'secondary';
+            }
+        }
+
+
+        function showStatus(message, type) {
+            const statusCard = document.getElementById('statusCard');
+            const statusContent = document.getElementById('statusContent');
+            
+            statusContent.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+            statusCard.style.display = 'block';
+        }
+
+        async function registerWithVapi(phoneNumber) {
+            try {
+                const response = await fetch('/api/register-phone-number', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        phone_number: phoneNumber
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    const resultDiv = document.getElementById('phoneNumbersResult');
+                    const successMsg = `
+                        <div class="status-message success" style="margin-top: 10px;">
+                            <strong>Number Registered with Vapi!</strong><br>
+                            <strong>Phone Number:</strong> ${phoneNumber}<br>
+                            <strong>Vapi Phone Number ID:</strong> ${result.vapi_phone_number.id}<br>
+                            <em>Copy the Phone Number ID for making calls</em>
+                        </div>
+                    `;
+                    resultDiv.innerHTML += successMsg;
+                    
+                    document.getElementById('twilioPhoneNumberId').value = result.vapi_phone_number.id;
+                } else {
+                    alert(`Error registering number: ${result.error}`);
+                }
+            } catch (error) {
+                alert(`Error registering number: ${error.message}`);
+            }
+        }
+
+        let autoRefreshInterval;
+        
+        function startAutoRefresh() {
+            if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+            
+            autoRefreshInterval = setInterval(async () => {
+                if (currentCallId) {
+                    await updateCallStatus();
+                    
+                    const statusContent = document.getElementById('statusContent').innerHTML;
+                    if (statusContent.includes('ended') || statusContent.includes('failed')) {
+                        clearInterval(autoRefreshInterval);
+                        autoRefreshInterval = null;
+                    }
+                }
+            }, 10000);
+        }
+        
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+        }
+        
+    </script>
+</body>
+</html>

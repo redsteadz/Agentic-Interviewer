@@ -4,6 +4,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from .models import APIConfiguration, InterviewAssistant, PhoneNumber, InterviewCall
 
 
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -44,3 +45,80 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.save()
 
         return user
+
+
+class APIConfigurationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = APIConfiguration
+        fields = ['twilio_account_sid', 'twilio_auth_token', 'vapi_api_key', 
+                 'is_twilio_configured', 'is_vapi_configured', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'twilio_auth_token': {'write_only': True},
+            'vapi_api_key': {'write_only': True},
+        }
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Don't expose sensitive tokens in read operations
+        if 'twilio_auth_token' in data:
+            data['twilio_auth_token'] = bool(instance.twilio_auth_token)
+        if 'vapi_api_key' in data:
+            data['vapi_api_key'] = bool(instance.vapi_api_key)
+        return data
+
+
+class InterviewAssistantSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InterviewAssistant
+        fields = ['id', 'name', 'vapi_assistant_id', 'first_message', 
+                 'voice_provider', 'voice_id', 'model_provider', 'model',
+                 'knowledge_text', 'knowledge_urls', 'configuration',
+                 'created_at', 'updated_at']
+        read_only_fields = ['id', 'vapi_assistant_id', 'created_at', 'updated_at']
+
+
+class CreateAssistantSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=255, default='AI Assistant')
+    first_message = serializers.CharField(default='Hello! How can I help you today?')
+    voice_provider = serializers.CharField(max_length=50, default='openai')
+    voice_id = serializers.CharField(max_length=100, default='nova')
+    model_provider = serializers.CharField(max_length=50, default='openai')
+    model = serializers.CharField(max_length=100, default='gpt-4')
+    knowledge_text = serializers.CharField(required=False, allow_blank=True)
+    knowledge_urls = serializers.CharField(required=False, allow_blank=True)
+
+
+class PhoneNumberSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PhoneNumber
+        fields = ['id', 'phone_number', 'vapi_phone_number_id', 'twilio_sid',
+                 'friendly_name', 'capabilities', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'vapi_phone_number_id', 'created_at', 'updated_at']
+
+
+class RegisterPhoneNumberSerializer(serializers.Serializer):
+    phone_number = serializers.CharField(max_length=20)
+
+
+class InterviewCallSerializer(serializers.ModelSerializer):
+    assistant_name = serializers.CharField(source='assistant.name', read_only=True)
+    phone_number_display = serializers.CharField(source='phone_number.phone_number', read_only=True)
+    duration_formatted = serializers.ReadOnlyField()
+
+    class Meta:
+        model = InterviewCall
+        fields = ['id', 'vapi_call_id', 'assistant', 'assistant_name', 
+                 'phone_number', 'phone_number_display', 'customer_number',
+                 'status', 'outcome_status', 'outcome_description',
+                 'created_at', 'started_at', 'ended_at', 'transcript',
+                 'transcript_text', 'cost', 'cost_breakdown', 'duration_seconds',
+                 'duration_formatted', 'end_reason', 'raw_call_data']
+        read_only_fields = ['id', 'vapi_call_id', 'created_at', 'started_at', 
+                           'ended_at', 'transcript', 'transcript_text', 'cost',
+                           'cost_breakdown', 'duration_seconds', 'end_reason', 'raw_call_data']
+
+
+class MakeCallSerializer(serializers.Serializer):
+    customer_number = serializers.CharField(max_length=20)
+    twilio_phone_number_id = serializers.CharField(max_length=255)
+    vapi_assistant_id = serializers.CharField(max_length=255)

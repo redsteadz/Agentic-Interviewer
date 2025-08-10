@@ -43,10 +43,18 @@ const Header = () => {
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => navigate('/private')}
+                                    onClick={() => navigate('/dashboard')}
                                 >
-                                    <i className="bx bx-grid-plus"></i>
+                                    <i className="bx bx-grid-alt"></i>
                                     Dashboard
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => navigate('/interview')}
+                                >
+                                    <i className="bx bx-phone"></i>
+                                    Interview
                                 </Button>
                                 <Button
                                     variant="destructive"
