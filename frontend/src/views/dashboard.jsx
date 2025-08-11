@@ -7,20 +7,55 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogTrigger, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Plus, PhoneCall, Mic, List, Phone, Settings, User } from "lucide-react"
+import { createCampaigns, getCampaigns } from "../utils/campaign"
+import { Description } from "@radix-ui/react-dialog"
 
 export default function Dashboard() {
   const [campaigns, setCampaigns] = useState([])
   const [selectedCampaign, setSelectedCampaign] = useState(null)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [formData, setFormData] = useState({ name: '', description: '' })
   const navigate = useNavigate()
 
   // Placeholder fetch logic, replace with real API later
   useEffect(() => {
-    setCampaigns([
-      { id: 1, name: "Onboarding Interview", callCount: 10 },
-      { id: 2, name: "Follow-up Calls", callCount: 5 },
-    ])
+    const fetchCampaigns = async () => {
+      try {
+        const campaigns = await getCampaigns()
+        setCampaigns(campaigns.data || [])
+      } catch (error) {
+        console.error("Failed to fetch campaigns:", error)
+        setCampaigns([])
+      }
+    }
+    fetchCampaigns()
   }, [])
+
+  const handleCreateCampaign = async (event) => {
+    event.preventDefault()
+    if (!formData.name.trim()) {
+      alert("Campaign name is required.")
+      return
+    }
+    const campaignData = {
+      name: formData['name'],
+      description: formData['description'],
+    }
+    console.log("Creating campaign with data:", campaignData)
+    // Placeholder for actual API call to create campaign
+    try {
+      await createCampaigns(campaignData)
+      setShowCreateDialog(false)
+      const updatedCampaigns = await getCampaigns()
+      setCampaigns(updatedCampaigns.data || [])
+    } catch (error) {
+      console.error("Failed to create campaign:", error)
+    }
+  }
+  const handleSelectCampaign = (campaign) => {
+    setSelectedCampaign(campaign)
+    navigate(`/interview/${campaign.id}`)
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -91,7 +126,7 @@ export default function Dashboard() {
         <TabsContent value="campaigns">
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
             {campaigns.map((c) => (
-              <Card key={c.id} onClick={() => setSelectedCampaign(c)} className="cursor-pointer">
+              <Card key={c.id} onClick={() => handleSelectCampaign(c)} className="cursor-pointer">
                 <CardHeader>
                   <CardTitle>{c.name}</CardTitle>
                 </CardHeader>
@@ -117,9 +152,9 @@ export default function Dashboard() {
         <DialogTrigger asChild></DialogTrigger>
         <DialogContent>
           <DialogTitle>Create New Campaign</DialogTitle>
-          <form className="space-y-4">
-            <Input placeholder="Campaign Name" required />
-            <Textarea placeholder="Description / Purpose" />
+          <form onSubmit={handleCreateCampaign} className="space-y-4">
+            <Input id="name" onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))} placeholder="Campaign Name" required />
+            <Textarea onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))} id="description" placeholder="Description / Purpose" />
             <Button type="submit" className="w-full">Create</Button>
           </form>
         </DialogContent>

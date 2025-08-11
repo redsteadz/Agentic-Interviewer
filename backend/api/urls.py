@@ -7,30 +7,47 @@ from rest_framework_simplejwt.views import (
 
 urlpatterns = [
     # Authentication endpoints
-    path('token/', views.MyTokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('register/', views.RegisterView.as_view(), name='auth_register'),
-    path('test/', views.testEndPoint, name='test'),
-    
+    path("token/", views.MyTokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("register/", views.RegisterView.as_view(), name="auth_register"),
+    path("test/", views.testEndPoint, name="test"),
+    # Campaign endpoints
+    path("campaign/", views.campaignView, name="campaign"),
     # Interview system endpoints
-    path('config/', views.APIConfigurationView.as_view(), name='api_config'),
-    path('clear-config/', views.clear_config, name='clear_config'),
-    
+    path("config/", views.APIConfigurationView.as_view(), name="api_config"),
+    path("clear-config/", views.clear_config, name="clear_config"),
     # Assistant endpoints
-    path('create-assistant/', views.CreateAssistantView.as_view(), name='create_assistant'),
-    path('assistants/', views.AssistantListView.as_view(), name='assistant_list'),
-    
+    path(
+        "create-assistant/",
+        views.CreateAssistantView.as_view(),
+        name="create_assistant",
+    ),
+    path("assistants/", views.AssistantListView.as_view(), name="assistant_list"),
     # Phone number endpoints
-    path('phone-numbers/', views.VapiPhoneNumbersView.as_view(), name='vapi_phone_numbers'),
-    path('twilio-numbers/', views.TwilioPhoneNumbersView.as_view(), name='twilio_phone_numbers'),
-    path('register-phone-number/', views.RegisterPhoneNumberView.as_view(), name='register_phone_number'),
-    path('my-phone-numbers/', views.PhoneNumberListView.as_view(), name='my_phone_numbers'),
-    
+    path(
+        "phone-numbers/",
+        views.VapiPhoneNumbersView.as_view(),
+        name="vapi_phone_numbers",
+    ),
+    path(
+        "twilio-numbers/",
+        views.TwilioPhoneNumbersView.as_view(),
+        name="twilio_phone_numbers",
+    ),
+    path(
+        "register-phone-number/",
+        views.RegisterPhoneNumberView.as_view(),
+        name="register_phone_number",
+    ),
+    path(
+        "my-phone-numbers/",
+        views.PhoneNumberListView.as_view(),
+        name="my_phone_numbers",
+    ),
     # Call endpoints
-    path('make-call/', views.MakeCallView.as_view(), name='make_call'),
-    path('call/<str:call_id>/', views.CallDetailView.as_view(), name='call_detail'),
-    path('calls/', views.CallListView.as_view(), name='call_list'),
-    
+    path("make-call/", views.MakeCallView.as_view(), name="make_call"),
+    path("call/<str:call_id>/", views.CallDetailView.as_view(), name="call_detail"),
+    path("calls/", views.CallListView.as_view(), name="call_list"),
     # Routes listing
-    path('', views.getRoutes, name='routes'),
+    path("", views.getRoutes, name="routes"),
 ]
