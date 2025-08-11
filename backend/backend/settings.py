@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'api',
+    'django_crontab',
 ]
 
 MIDDLEWARE = [
@@ -166,3 +167,7 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/4.0/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+CRONJOBS = [
+    ('*/1 * * * *', f'/home/red/Documents/ProjectDict/django-react-auth/backend/venv/bin/python /home/red/Documents/ProjectDict/django-react-auth/backend/manage.py execute_scheduled_calls >> /home/red/cron.log 2>&1'),
+]

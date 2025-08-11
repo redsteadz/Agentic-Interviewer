@@ -26,7 +26,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         user_id = options.get('user_id')
         dry_run = options.get('dry_run', False)
-
+        print(f'Executing scheduled calls with dry_run={dry_run} for user_id={user_id}')
         # Get all due scheduled calls
         queryset = ScheduledCall.objects.filter(
             status='scheduled',
@@ -37,7 +37,7 @@ class Command(BaseCommand):
             queryset = queryset.filter(user_id=user_id)
 
         due_calls = queryset.order_by('scheduled_time')
-
+        print(f'Found {due_calls.count()} due scheduled calls.')
         if not due_calls.exists():
             self.stdout.write(
                 self.style.SUCCESS('No scheduled calls are due for execution.')
