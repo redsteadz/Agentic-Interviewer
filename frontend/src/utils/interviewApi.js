@@ -64,6 +64,33 @@ export const getCalls = (campaignId = null) => {
     return api.get('calls/', { params });
 };
 
+// Scheduled call endpoints
+export const scheduleCall = (data) => {
+    const api = useAxios();
+    return api.post('schedule-call/', data);
+};
+export const getScheduledCalls = (campaignId = null) => {
+    const api = useAxios();
+    const params = campaignId ? { campaign_id: campaignId } : {};
+    return api.get('scheduled-calls/', { params });
+};
+export const getScheduledCallDetails = (callId) => {
+    const api = useAxios();
+    return api.get(`scheduled-call/${callId}/`);
+};
+export const updateScheduledCall = (callId, data) => {
+    const api = useAxios();
+    return api.patch(`scheduled-call/${callId}/`, data);
+};
+export const deleteScheduledCall = (callId) => {
+    const api = useAxios();
+    return api.delete(`scheduled-call/${callId}/`);
+};
+export const executeScheduledCalls = () => {
+    const api = useAxios();
+    return api.post('execute-scheduled-calls/');
+};
+
 // Test endpoint
 export const testEndpoint = (data) => {
     const api = useAxios();

@@ -10,6 +10,7 @@ from .models import (
     PhoneNumber,
     InterviewCall,
     Campaign,
+    ScheduledCall,
 )
 
 
@@ -222,3 +223,60 @@ class MakeCallSerializer(serializers.Serializer):
     customer_number = serializers.CharField(max_length=20)
     twilio_phone_number_id = serializers.CharField(max_length=255)
     vapi_assistant_id = serializers.CharField(max_length=255)
+
+
+class ScheduledCallSerializer(serializers.ModelSerializer):
+    assistant_name = serializers.CharField(source="assistant.name", read_only=True)
+    phone_number_display = serializers.CharField(
+        source="phone_number.phone_number", read_only=True
+    )
+    campaign_name = serializers.CharField(source="campaign.name", read_only=True)
+    actual_call_id = serializers.CharField(source="actual_call.id", read_only=True)
+
+    class Meta:
+        model = ScheduledCall
+        fields = [
+            "id",
+            "assistant",
+            "assistant_name",
+            "phone_number",
+            "phone_number_display",
+            "customer_number",
+            "scheduled_time",
+            "status",
+            "call_name",
+            "notes",
+            "campaign",
+            "campaign_name",
+            "actual_call",
+            "actual_call_id",
+            "execution_attempts",
+            "last_attempt_at",
+            "error_message",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "actual_call",
+            "execution_attempts",
+            "last_attempt_at",
+            "error_message",
+            "created_at",
+            "updated_at",
+        ]
+
+
+class CreateScheduledCallSerializer(serializers.Serializer):
+    customer_number = serializers.CharField(max_length=20)
+    twilio_phone_number_id = serializers.CharField(max_length=255)
+    vapi_assistant_id = serializers.CharField(max_length=255)
+    scheduled_time = serializers.DateTimeField()
+    call_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    notes = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_scheduled_time(self, value):
+        from django.utils import timezone
+        if value <= timezone.now():
+            raise serializers.ValidationError("Scheduled time must be in the future.")
+        return value

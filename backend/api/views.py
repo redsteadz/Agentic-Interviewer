@@ -18,6 +18,8 @@ from api.serializer import (
     RegisterPhoneNumberSerializer,
     InterviewCallSerializer,
     MakeCallSerializer,
+    ScheduledCallSerializer,
+    CreateScheduledCallSerializer,
 )
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .models import (
@@ -26,6 +28,7 @@ from .models import (
     InterviewAssistant,
     PhoneNumber,
     InterviewCall,
+    ScheduledCall,
 )
 import json
 import logging
@@ -34,6 +37,9 @@ import os
 from dotenv import load_dotenv
 from twilio.rest import Client
 from datetime import datetime
+import logging
+import requests
+import json
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -67,6 +73,10 @@ def getRoutes(request):
         "/api/calls/",
         "/api/call/<call_id>/",
         "/api/campaign/",
+        "/api/schedule-call/",
+        "/api/scheduled-calls/",
+        "/api/scheduled-call/<call_id>/",
+        "/api/execute-scheduled-calls/",
     ]
     return Response(routes)
 
@@ -1206,3 +1216,273 @@ class CallListView(generics.ListAPIView):
         if campaign_id:
             queryset = queryset.filter(campaign_id=campaign_id)
         return queryset
+
+
+class ScheduleCallView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            serializer = CreateScheduledCallSerializer(data=request.data)
+            if not serializer.is_valid():
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+            data = serializer.validated_data
+
+            # Get assistant and phone number objects
+            try:
+                assistant = InterviewAssistant.objects.get(
+                    vapi_assistant_id=data['vapi_assistant_id'],
+                    user=request.user
+                )
+            except InterviewAssistant.DoesNotExist:
+                return Response(
+                    {"error": "Assistant not found"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            try:
+                phone_number = PhoneNumber.objects.get(
+                    vapi_phone_number_id=data['twilio_phone_number_id'],
+                    user=request.user,
+                    is_active=True
+                )
+            except PhoneNumber.DoesNotExist:
+                return Response(
+                    {"error": "Phone number not found"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Determine campaign from assistant or phone number
+            campaign = assistant.campaign or phone_number.campaign
+
+            # Create scheduled call
+            scheduled_call = ScheduledCall.objects.create(
+                user=request.user,
+                campaign=campaign,
+                assistant=assistant,
+                phone_number=phone_number,
+                customer_number=data['customer_number'],
+                scheduled_time=data['scheduled_time'],
+                call_name=data.get('call_name', ''),
+                notes=data.get('notes', ''),
+                status='scheduled'
+            )
+
+            return Response(
+                {
+                    "success": True,
+                    "scheduled_call": ScheduledCallSerializer(scheduled_call).data,
+                    "message": f"Call scheduled for {scheduled_call.scheduled_time}"
+                },
+                status=status.HTTP_201_CREATED
+            )
+
+        except Exception as e:
+            logger.error(f"Error scheduling call: {str(e)}")
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class ScheduledCallListView(generics.ListAPIView):
+    serializer_class = ScheduledCallSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = ScheduledCall.objects.filter(user=self.request.user)
+        campaign_id = self.request.query_params.get('campaign_id')
+        if campaign_id:
+            queryset = queryset.filter(campaign_id=campaign_id)
+        return queryset
+
+
+class ScheduledCallDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, call_id):
+        try:
+            scheduled_call = ScheduledCall.objects.get(
+                id=call_id, user=request.user
+            )
+            return Response(ScheduledCallSerializer(scheduled_call).data)
+        except ScheduledCall.DoesNotExist:
+            return Response(
+                {"error": "Scheduled call not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+    def patch(self, request, call_id):
+        try:
+            scheduled_call = ScheduledCall.objects.get(
+                id=call_id, user=request.user
+            )
+            
+            # Only allow certain status updates
+            if 'status' in request.data:
+                if request.data['status'] in ['cancelled']:
+                    scheduled_call.status = request.data['status']
+                    scheduled_call.save()
+                    return Response(ScheduledCallSerializer(scheduled_call).data)
+                else:
+                    return Response(
+                        {"error": "Invalid status update"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            
+            return Response(
+                {"error": "No valid updates provided"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except ScheduledCall.DoesNotExist:
+            return Response(
+                {"error": "Scheduled call not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+    def delete(self, request, call_id):
+        try:
+            scheduled_call = ScheduledCall.objects.get(
+                id=call_id, user=request.user
+            )
+            scheduled_call.delete()
+            return Response({"success": True, "message": "Scheduled call deleted"})
+        except ScheduledCall.DoesNotExist:
+            return Response(
+                {"error": "Scheduled call not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+
+class ExecuteScheduledCallsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """Manually trigger execution of due scheduled calls (for testing/manual trigger)"""
+        try:
+            from django.utils import timezone
+            
+            # Get all due scheduled calls for this user
+            due_calls = ScheduledCall.objects.filter(
+                user=request.user,
+                status='scheduled',
+                scheduled_time__lte=timezone.now()
+            )
+
+            executed_count = 0
+            results = []
+
+            for scheduled_call in due_calls:
+                try:
+                    result = self.execute_scheduled_call(scheduled_call)
+                    results.append(result)
+                    if result['success']:
+                        executed_count += 1
+                except Exception as e:
+                    logger.error(f"Error executing scheduled call {scheduled_call.id}: {str(e)}")
+                    results.append({
+                        'scheduled_call_id': scheduled_call.id,
+                        'success': False,
+                        'error': str(e)
+                    })
+
+            return Response({
+                "success": True,
+                "executed_count": executed_count,
+                "total_due": len(due_calls),
+                "results": results
+            })
+
+        except Exception as e:
+            logger.error(f"Error executing scheduled calls: {str(e)}")
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def execute_scheduled_call(self, scheduled_call):
+        """Execute a single scheduled call"""
+        from django.utils import timezone
+        
+        try:
+            # Update status and attempt tracking
+            scheduled_call.status = 'in_progress'
+            scheduled_call.execution_attempts += 1
+            scheduled_call.last_attempt_at = timezone.now()
+            scheduled_call.save()
+
+            # Get user's API configuration
+            try:
+                api_config = APIConfiguration.objects.get(user=scheduled_call.user)
+                vapi_key = api_config.vapi_api_key
+            except APIConfiguration.DoesNotExist:
+                raise Exception("API configuration not found")
+
+            if not api_config.is_vapi_configured:
+                raise Exception("Vapi API not configured")
+
+            # Prepare call payload (similar to MakeCallView)
+            headers = {
+                "Authorization": f"Bearer {vapi_key}",
+                "Content-Type": "application/json",
+            }
+
+            payload = {
+                "assistantId": scheduled_call.assistant.vapi_assistant_id,
+                "phoneNumberId": scheduled_call.phone_number.vapi_phone_number_id,
+                "customer": {"number": scheduled_call.customer_number},
+            }
+
+            # Make the call via Vapi API
+            response = requests.post(
+                "https://api.vapi.ai/call", headers=headers, json=payload
+            )
+
+            response.raise_for_status()
+            call_data = response.json()
+
+            # Create InterviewCall record
+            interview_call = InterviewCall.objects.create(
+                user=scheduled_call.user,
+                campaign=scheduled_call.campaign,
+                vapi_call_id=call_data.get("id"),
+                assistant=scheduled_call.assistant,
+                phone_number=scheduled_call.phone_number,
+                customer_number=scheduled_call.customer_number,
+                status="queued",
+                raw_call_data=call_data,
+            )
+
+            # Link the scheduled call to the actual call
+            scheduled_call.actual_call = interview_call
+            scheduled_call.status = 'completed'
+            scheduled_call.save()
+
+            return {
+                'scheduled_call_id': scheduled_call.id,
+                'success': True,
+                'call_id': interview_call.id,
+                'vapi_call_id': call_data.get("id"),
+                'message': 'Call initiated successfully'
+            }
+
+        except requests.exceptions.RequestException as e:
+            scheduled_call.status = 'failed'
+            scheduled_call.error_message = f"Vapi API error: {str(e)}"
+            scheduled_call.save()
+            
+            return {
+                'scheduled_call_id': scheduled_call.id,
+                'success': False,
+                'error': f"Vapi API error: {str(e)}"
+            }
+
+        except Exception as e:
+            scheduled_call.status = 'failed'
+            scheduled_call.error_message = str(e)
+            scheduled_call.save()
+            
+            return {
+                'scheduled_call_id': scheduled_call.id,
+                'success': False,
+                'error': str(e)
+            }

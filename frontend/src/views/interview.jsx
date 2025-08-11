@@ -8,7 +8,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Badge } from '../components/ui/badge';
 import { Alert, AlertDescription } from '../components/ui/alert';
-import { Loader2, Phone, User, Settings, Shield, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, Phone, User, Settings, Shield, CheckCircle, XCircle, Calendar, Clock } from 'lucide-react';
 import { 
   getApiConfig, 
   updateApiConfig, 
@@ -19,7 +19,10 @@ import {
   getVapiPhoneNumbers,
   registerPhoneNumber,
   makeCall,
-  getCallDetails 
+  getCallDetails,
+  scheduleCall,
+  getScheduledCalls,
+  deleteScheduledCall
 } from '../utils/interviewApi';
 import { getCampaigns } from '../utils/campaign';
 
@@ -73,6 +76,19 @@ const InterviewDashboard = () => {
   const [currentCall, setCurrentCall] = useState(null);
   const [callDetails, setCallDetails] = useState(null);
 
+  // Scheduled Call State
+  const [scheduleForm, setScheduleForm] = useState({
+    customer_number: '',
+    twilio_phone_number_id: '',
+    vapi_assistant_id: '',
+    scheduled_time: '',
+    call_name: '',
+    notes: ''
+  });
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [scheduledCalls, setScheduledCalls] = useState([]);
+  const [scheduleMessage, setScheduleMessage] = useState('');
+
   // Load initial data
   useEffect(() => {
     loadApiConfig();
@@ -81,6 +97,7 @@ const InterviewDashboard = () => {
       loadCampaignData();
     }
     loadAssistants();
+    loadScheduledCalls();
   }, [campaignId]);
 
   // Update assistant form when campaign changes
@@ -328,6 +345,92 @@ const InterviewDashboard = () => {
     }
   };
 
+  // Scheduled Call Functions
+  const loadScheduledCalls = async () => {
+    try {
+      const response = await getScheduledCalls(campaignId);
+      setScheduledCalls(response.data);
+    } catch (error) {
+      console.error('Error loading scheduled calls:', error);
+    }
+  };
+
+  const handleScheduleCall = async (e) => {
+    e.preventDefault();
+    setScheduleLoading(true);
+    setScheduleMessage('');
+
+    try {
+      // Validate required fields
+      if (!scheduleForm.customer_number || !scheduleForm.twilio_phone_number_id || 
+          !scheduleForm.vapi_assistant_id || !scheduleForm.scheduled_time) {
+        setScheduleMessage('Please fill in all required fields');
+        setScheduleLoading(false);
+        return;
+      }
+
+      // Validate scheduled time is in the future
+      const scheduledDate = new Date(scheduleForm.scheduled_time);
+      if (scheduledDate <= new Date()) {
+        setScheduleMessage('Scheduled time must be in the future');
+        setScheduleLoading(false);
+        return;
+      }
+
+      const response = await scheduleCall(scheduleForm);
+      if (response.data.success) {
+        setScheduleMessage('Call scheduled successfully!');
+        setScheduleForm({
+          customer_number: '',
+          twilio_phone_number_id: '',
+          vapi_assistant_id: '',
+          scheduled_time: '',
+          call_name: '',
+          notes: ''
+        });
+        await loadScheduledCalls();
+      } else {
+        setScheduleMessage(`Error: ${response.data.error}`);
+      }
+    } catch (error) {
+      setScheduleMessage(`Error: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setScheduleLoading(false);
+    }
+  };
+
+  const handleDeleteScheduledCall = async (callId) => {
+    if (!confirm('Are you sure you want to delete this scheduled call?')) {
+      return;
+    }
+
+    try {
+      await deleteScheduledCall(callId);
+      setScheduleMessage('Scheduled call deleted successfully');
+      await loadScheduledCalls();
+    } catch (error) {
+      setScheduleMessage(`Error: ${error.response?.data?.error || error.message}`);
+    }
+  };
+
+  const getScheduleStatusColor = (status) => {
+    switch(status) {
+      case 'scheduled': return 'bg-blue-100 text-blue-800';
+      case 'completed': return 'bg-green-100 text-green-800';
+      case 'in_progress': return 'bg-yellow-100 text-yellow-800';
+      case 'failed': return 'bg-red-100 text-red-800';
+      case 'cancelled': return 'bg-gray-100 text-gray-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const formatScheduledTime = (timeString) => {
+    const date = new Date(timeString);
+    // If the date string ends with 'Z' or has timezone info, it's already in UTC
+    // Convert to local time for display
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="text-center space-y-2">
@@ -353,7 +456,7 @@ const InterviewDashboard = () => {
       </div>
 
       <Tabs defaultValue="config" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="config" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
             Configuration
@@ -369,6 +472,10 @@ const InterviewDashboard = () => {
           <TabsTrigger value="calls" className="flex items-center gap-2">
             <Shield className="h-4 w-4" />
             Make Calls
+          </TabsTrigger>
+          <TabsTrigger value="scheduled" className="flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            Schedule Calls
           </TabsTrigger>
         </TabsList>
 
@@ -861,6 +968,214 @@ const InterviewDashboard = () => {
                 </CardContent>
               </Card>
             )}
+          </div>
+        </TabsContent>
+
+        {/* Scheduled Calls Tab */}
+        <TabsContent value="scheduled">
+          <div className="grid gap-6">
+            {/* Schedule New Call Form */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Schedule New Call
+                </CardTitle>
+                <CardDescription>
+                  Schedule interview calls to be made automatically at specific times
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {scheduleMessage && (
+                  <Alert className="mb-4">
+                    <AlertDescription>{scheduleMessage}</AlertDescription>
+                  </Alert>
+                )}
+
+                <form onSubmit={handleScheduleCall} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="schedule-customer-number">Customer Phone Number *</Label>
+                      <Input
+                        id="schedule-customer-number"
+                        type="tel"
+                        placeholder="+1234567890"
+                        value={scheduleForm.customer_number}
+                        onChange={(e) => setScheduleForm(prev => ({
+                          ...prev,
+                          customer_number: e.target.value
+                        }))}
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="schedule-call-name">Call Name (Optional)</Label>
+                      <Input
+                        id="schedule-call-name"
+                        placeholder="Interview for John Doe"
+                        value={scheduleForm.call_name}
+                        onChange={(e) => setScheduleForm(prev => ({
+                          ...prev,
+                          call_name: e.target.value
+                        }))}
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="schedule-phone-number">Your Phone Number *</Label>
+                      <select
+                        id="schedule-phone-number"
+                        className="w-full border border-gray-300 rounded-md px-3 py-2"
+                        value={scheduleForm.twilio_phone_number_id}
+                        onChange={(e) => setScheduleForm(prev => ({
+                          ...prev,
+                          twilio_phone_number_id: e.target.value
+                        }))}
+                        required
+                      >
+                        <option value="">Select a phone number</option>
+                        {vapiNumbers.map((number) => (
+                          <option key={number.id} value={number.id}>
+                            {number.number} - {number.name || 'Unnamed'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="schedule-assistant">Interview Assistant *</Label>
+                      <select
+                        id="schedule-assistant"
+                        className="w-full border border-gray-300 rounded-md px-3 py-2"
+                        value={scheduleForm.vapi_assistant_id}
+                        onChange={(e) => setScheduleForm(prev => ({
+                          ...prev,
+                          vapi_assistant_id: e.target.value
+                        }))}
+                        required
+                      >
+                        <option value="">Select an assistant</option>
+                        {assistants.map((assistant) => (
+                          <option key={assistant.id} value={assistant.vapi_assistant_id}>
+                            {assistant.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="scheduled-time">Scheduled Date & Time *</Label>
+                      <Input
+                        id="scheduled-time"
+                        type="datetime-local"
+                        value={scheduleForm.scheduled_time}
+                        onChange={(e) => setScheduleForm(prev => ({
+                          ...prev,
+                          scheduled_time: e.target.value
+                        }))}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="schedule-notes">Notes (Optional)</Label>
+                    <Textarea
+                      id="schedule-notes"
+                      placeholder="Additional notes about this scheduled call..."
+                      value={scheduleForm.notes}
+                      onChange={(e) => setScheduleForm(prev => ({
+                        ...prev,
+                        notes: e.target.value
+                      }))}
+                      rows={3}
+                    />
+                  </div>
+
+                  <Button 
+                    type="submit" 
+                    disabled={scheduleLoading}
+                    className="w-full"
+                  >
+                    {scheduleLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Scheduling Call...
+                      </>
+                    ) : (
+                      <>
+                        <Calendar className="mr-2 h-4 w-4" />
+                        Schedule Call
+                      </>
+                    )}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+
+            {/* Scheduled Calls List */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  Scheduled Calls
+                </CardTitle>
+                <CardDescription>
+                  View and manage your scheduled interview calls
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {scheduledCalls.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No scheduled calls yet. Create your first scheduled call above.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {scheduledCalls.map((call) => (
+                      <div key={call.id} className="border rounded-lg p-4 space-y-3">
+                        <div className="flex justify-between items-start">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-semibold">
+                                {call.call_name || `Call to ${call.customer_number}`}
+                              </h4>
+                              <Badge className={getScheduleStatusColor(call.status)}>
+                                {call.status}
+                              </Badge>
+                            </div>
+                            <div className="text-sm text-muted-foreground space-y-1">
+                              <p><strong>Customer:</strong> {call.customer_number}</p>
+                              <p><strong>Scheduled:</strong> {formatScheduledTime(call.scheduled_time)}</p>
+                              <p><strong>Assistant:</strong> {call.assistant_name}</p>
+                              <p><strong>Phone:</strong> {call.phone_number_display}</p>
+                              {call.notes && <p><strong>Notes:</strong> {call.notes}</p>}
+                              {call.actual_call_id && (
+                                <p><strong>Call ID:</strong> {call.actual_call_id}</p>
+                              )}
+                              {call.error_message && (
+                                <p className="text-red-600"><strong>Error:</strong> {call.error_message}</p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            {call.status === 'scheduled' && (
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleDeleteScheduledCall(call.id)}
+                              >
+                                Cancel
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
       </Tabs>

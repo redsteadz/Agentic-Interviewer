@@ -1,5 +1,19 @@
 from django.contrib import admin
-from .models import APIConfiguration, InterviewAssistant, PhoneNumber, InterviewCall
+from .models import APIConfiguration, InterviewAssistant, PhoneNumber, InterviewCall, ScheduledCall, Campaign
+
+@admin.register(Campaign)
+class CampaignAdmin(admin.ModelAdmin):
+    list_display = ['name', 'user', 'created_at', 'updated_at']
+    list_filter = ['created_at', 'updated_at']
+    search_fields = ['name', 'user__username']
+    readonly_fields = ['created_at', 'updated_at']
+
+@admin.register(ScheduledCall)
+class ScheduledCallAdmin(admin.ModelAdmin):
+    list_display = ['id', 'user', 'scheduled_time', 'status', 'created_at']
+    list_filter = ['status', 'created_at']
+    search_fields = ['user__username', 'id']
+    readonly_fields = ['created_at', 'updated_at']
 
 @admin.register(APIConfiguration)
 class APIConfigurationAdmin(admin.ModelAdmin):

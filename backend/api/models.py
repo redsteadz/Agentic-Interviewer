@@ -193,3 +193,70 @@ class InterviewCall(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+
+
+class ScheduledCall(models.Model):
+    """Store scheduled call information"""
+
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("scheduled", "Scheduled"),
+        ("in_progress", "In Progress"),
+        ("completed", "Completed"),
+        ("failed", "Failed"),
+        ("cancelled", "Cancelled"),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="scheduled_calls")
+    campaign = models.ForeignKey(
+        Campaign,
+        on_delete=models.CASCADE,
+        related_name="scheduled_calls",
+        blank=True,
+        null=True,
+    )
+
+    # Call configuration
+    assistant = models.ForeignKey(
+        InterviewAssistant, on_delete=models.CASCADE, related_name="scheduled_calls"
+    )
+    phone_number = models.ForeignKey(
+        PhoneNumber, on_delete=models.CASCADE, related_name="scheduled_calls"
+    )
+    customer_number = models.CharField(max_length=20)
+    
+    # Scheduling information
+    scheduled_time = models.DateTimeField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    
+    # Optional call metadata
+    call_name = models.CharField(max_length=255, blank=True, null=True)
+    notes = models.TextField(blank=True, null=True)
+    
+    # Execution tracking
+    actual_call = models.OneToOneField(
+        InterviewCall, 
+        on_delete=models.SET_NULL, 
+        blank=True, 
+        null=True,
+        related_name="scheduled_call"
+    )
+    execution_attempts = models.IntegerField(default=0)
+    last_attempt_at = models.DateTimeField(blank=True, null=True)
+    error_message = models.TextField(blank=True, null=True)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Scheduled call to {self.customer_number} at {self.scheduled_time}"
+
+    @property
+    def is_due(self):
+        """Check if the scheduled call is due for execution"""
+        from django.utils import timezone
+        return self.status == "scheduled" and self.scheduled_time <= timezone.now()
+
+    class Meta:
+        ordering = ["scheduled_time"]

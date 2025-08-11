@@ -48,6 +48,11 @@ urlpatterns = [
     path("make-call/", views.MakeCallView.as_view(), name="make_call"),
     path("call/<str:call_id>/", views.CallDetailView.as_view(), name="call_detail"),
     path("calls/", views.CallListView.as_view(), name="call_list"),
+    # Scheduled call endpoints
+    path("schedule-call/", views.ScheduleCallView.as_view(), name="schedule_call"),
+    path("scheduled-calls/", views.ScheduledCallListView.as_view(), name="scheduled_call_list"),
+    path("scheduled-call/<int:call_id>/", views.ScheduledCallDetailView.as_view(), name="scheduled_call_detail"),
+    path("execute-scheduled-calls/", views.ExecuteScheduledCallsView.as_view(), name="execute_scheduled_calls"),
     # Routes listing
     path("", views.getRoutes, name="routes"),
 ]
