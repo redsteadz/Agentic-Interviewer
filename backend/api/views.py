@@ -233,6 +233,18 @@ class CreateAssistantView(APIView):
             )
             knowledge_text = data.get("knowledge_text", "")
             knowledge_urls = data.get("knowledge_urls", "")
+            campaign_id = data.get("campaign_id")
+
+            # Get campaign if provided
+            campaign = None
+            if campaign_id:
+                try:
+                    campaign = Campaign.objects.get(id=campaign_id, user=request.user)
+                except Campaign.DoesNotExist:
+                    return Response(
+                        {"error": "Campaign not found or does not belong to user"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
             logger.info(
                 f"Received data: name='{assistant_name}', voice_provider='{voice_provider}', voice_id='{voice_id}', model_provider='{model_provider}', model='{model}', first_message='{first_message}'"
@@ -320,6 +332,7 @@ class CreateAssistantView(APIView):
             # Save assistant to database
             assistant = InterviewAssistant.objects.create(
                 user=request.user,
+                campaign=campaign,
                 name=assistant_name,
                 vapi_assistant_id=response_data.get("id"),
                 first_message=first_message,
@@ -437,7 +450,11 @@ class AssistantListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return InterviewAssistant.objects.filter(user=self.request.user)
+        queryset = InterviewAssistant.objects.filter(user=self.request.user)
+        campaign_id = self.request.query_params.get('campaign_id')
+        if campaign_id:
+            queryset = queryset.filter(campaign_id=campaign_id)
+        return queryset
 
 
 class VapiPhoneNumbersView(APIView):
@@ -564,6 +581,18 @@ class RegisterPhoneNumberView(APIView):
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
             phone_number = serializer.validated_data["phone_number"]
+            campaign_id = serializer.validated_data.get("campaign_id")
+
+            # Get campaign if provided
+            campaign = None
+            if campaign_id:
+                try:
+                    campaign = Campaign.objects.get(id=campaign_id, user=request.user)
+                except Campaign.DoesNotExist:
+                    return Response(
+                        {"error": "Campaign not found or does not belong to user"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
             headers = {
                 "Authorization": f"Bearer {vapi_key}",
@@ -615,6 +644,7 @@ class RegisterPhoneNumberView(APIView):
             # Save phone number to database
             phone_number_obj = PhoneNumber.objects.create(
                 user=request.user,
+                campaign=campaign,
                 phone_number=phone_number,
                 vapi_phone_number_id=response_data.get("id"),
                 friendly_name=response_data.get("name", phone_number),
@@ -650,7 +680,11 @@ class PhoneNumberListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return PhoneNumber.objects.filter(user=self.request.user, is_active=True)
+        queryset = PhoneNumber.objects.filter(user=self.request.user, is_active=True)
+        campaign_id = self.request.query_params.get('campaign_id')
+        if campaign_id:
+            queryset = queryset.filter(campaign_id=campaign_id)
+        return queryset
 
 
 class MakeCallView(APIView):
@@ -746,8 +780,11 @@ class MakeCallView(APIView):
                 )
 
             # Save call to database
+            # Use campaign from assistant or phone number (prefer assistant)
+            campaign = assistant.campaign or phone_number.campaign
             call = InterviewCall.objects.create(
                 user=request.user,
+                campaign=campaign,
                 vapi_call_id=response_data.get("id"),
                 assistant=assistant,
                 phone_number=phone_number,
@@ -1164,4 +1201,8 @@ class CallListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return InterviewCall.objects.filter(user=self.request.user)
+        queryset = InterviewCall.objects.filter(user=self.request.user)
+        campaign_id = self.request.query_params.get('campaign_id')
+        if campaign_id:
+            queryset = queryset.filter(campaign_id=campaign_id)
+        return queryset

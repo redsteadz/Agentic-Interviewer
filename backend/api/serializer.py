@@ -81,6 +81,8 @@ class APIConfigurationSerializer(serializers.ModelSerializer):
 
 
 class InterviewAssistantSerializer(serializers.ModelSerializer):
+    campaign_name = serializers.CharField(source="campaign.name", read_only=True)
+    
     class Meta:
         model = InterviewAssistant
         fields = [
@@ -95,6 +97,8 @@ class InterviewAssistantSerializer(serializers.ModelSerializer):
             "knowledge_text",
             "knowledge_urls",
             "configuration",
+            "campaign",
+            "campaign_name",
             "created_at",
             "updated_at",
         ]
@@ -110,6 +114,7 @@ class CreateAssistantSerializer(serializers.Serializer):
     model = serializers.CharField(max_length=100, default="gpt-4")
     knowledge_text = serializers.CharField(required=False, allow_blank=True)
     knowledge_urls = serializers.CharField(required=False, allow_blank=True)
+    campaign_id = serializers.IntegerField(required=False, allow_null=True)
 
 
 class CampaignSerializer(serializers.ModelSerializer):
@@ -137,6 +142,8 @@ class CreateCampaignSerializer(serializers.Serializer):
 
 
 class PhoneNumberSerializer(serializers.ModelSerializer):
+    campaign_name = serializers.CharField(source="campaign.name", read_only=True)
+    
     class Meta:
         model = PhoneNumber
         fields = [
@@ -147,6 +154,8 @@ class PhoneNumberSerializer(serializers.ModelSerializer):
             "friendly_name",
             "capabilities",
             "is_active",
+            "campaign",
+            "campaign_name",
             "created_at",
             "updated_at",
         ]
@@ -155,6 +164,7 @@ class PhoneNumberSerializer(serializers.ModelSerializer):
 
 class RegisterPhoneNumberSerializer(serializers.Serializer):
     phone_number = serializers.CharField(max_length=20)
+    campaign_id = serializers.IntegerField(required=False, allow_null=True)
 
 
 class InterviewCallSerializer(serializers.ModelSerializer):
@@ -162,6 +172,7 @@ class InterviewCallSerializer(serializers.ModelSerializer):
     phone_number_display = serializers.CharField(
         source="phone_number.phone_number", read_only=True
     )
+    campaign_name = serializers.CharField(source="campaign.name", read_only=True)
     duration_formatted = serializers.ReadOnlyField()
 
     class Meta:
@@ -177,6 +188,8 @@ class InterviewCallSerializer(serializers.ModelSerializer):
             "status",
             "outcome_status",
             "outcome_description",
+            "campaign",
+            "campaign_name",
             "created_at",
             "started_at",
             "ended_at",

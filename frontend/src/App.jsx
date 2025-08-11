@@ -30,6 +30,7 @@ function App() {
                     />
                     <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
                     <Route path="/interview" element={<PrivateRoute><InterviewDashboard /></PrivateRoute>} />
+                    <Route path="/interview/:campaignId" element={<PrivateRoute><InterviewDashboard /></PrivateRoute>} />
                     <Route path="/" element={<Home />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/register" element={<Register />} />

@@ -20,9 +20,10 @@ export const createAssistant = (data) => {
     const api = useAxios();
     return api.post('create-assistant/', data);
 };
-export const getAssistants = () => {
+export const getAssistants = (campaignId = null) => {
     const api = useAxios();
-    return api.get('assistants/');
+    const params = campaignId ? { campaign_id: campaignId } : {};
+    return api.get('assistants/', { params });
 };
 
 // Phone number endpoints
@@ -34,13 +35,18 @@ export const getTwilioPhoneNumbers = () => {
     const api = useAxios();
     return api.get('twilio-numbers/');
 };
-export const registerPhoneNumber = (phoneNumber) => {
+export const registerPhoneNumber = (phoneNumber, campaignId = null) => {
     const api = useAxios();
-    return api.post('register-phone-number/', { phone_number: phoneNumber });
+    const data = { phone_number: phoneNumber };
+    if (campaignId) {
+        data.campaign_id = campaignId;
+    }
+    return api.post('register-phone-number/', data);
 };
-export const getMyPhoneNumbers = () => {
+export const getMyPhoneNumbers = (campaignId = null) => {
     const api = useAxios();
-    return api.get('my-phone-numbers/');
+    const params = campaignId ? { campaign_id: campaignId } : {};
+    return api.get('my-phone-numbers/', { params });
 };
 
 // Call endpoints
@@ -52,9 +58,10 @@ export const getCallDetails = (callId) => {
     const api = useAxios();
     return api.get(`call/${callId}/`);
 };
-export const getCalls = () => {
+export const getCalls = (campaignId = null) => {
     const api = useAxios();
-    return api.get('calls/');
+    const params = campaignId ? { campaign_id: campaignId } : {};
+    return api.get('calls/', { params });
 };
 
 // Test endpoint

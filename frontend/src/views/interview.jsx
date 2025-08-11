@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -20,8 +21,15 @@ import {
   makeCall,
   getCallDetails 
 } from '../utils/interviewApi';
+import { getCampaigns } from '../utils/campaign';
 
 const InterviewDashboard = () => {
+  const { campaignId } = useParams(); // Get campaign ID from URL
+  
+  // Campaign State
+  const [currentCampaign, setCurrentCampaign] = useState(null);
+  const [campaigns, setCampaigns] = useState([]);
+  
   // API Configuration State
   const [apiConfig, setApiConfig] = useState({
     twilio_account_sid: '',
@@ -42,7 +50,8 @@ const InterviewDashboard = () => {
     model_provider: 'openai',
     model: 'gpt-4',
     knowledge_text: '',
-    knowledge_urls: ''
+    knowledge_urls: '',
+    campaign_id: campaignId || null
   });
   const [assistantLoading, setAssistantLoading] = useState(false);
   const [assistantMessage, setAssistantMessage] = useState('');
@@ -67,8 +76,20 @@ const InterviewDashboard = () => {
   // Load initial data
   useEffect(() => {
     loadApiConfig();
+    loadCampaigns();
+    if (campaignId) {
+      loadCampaignData();
+    }
     loadAssistants();
-  }, []);
+  }, [campaignId]);
+
+  // Update assistant form when campaign changes
+  useEffect(() => {
+    setAssistantForm(prev => ({
+      ...prev,
+      campaign_id: campaignId || null
+    }));
+  }, [campaignId]);
 
   // Auto-refresh call details
   useEffect(() => {
@@ -132,10 +153,34 @@ const InterviewDashboard = () => {
     }
   };
 
+  // Campaign Functions
+  const loadCampaigns = async () => {
+    try {
+      const response = await getCampaigns();
+      setCampaigns(response.data || []);
+    } catch (error) {
+      console.error('Error loading campaigns:', error);
+    }
+  };
+
+  const loadCampaignData = async () => {
+    if (campaignId && campaigns.length > 0) {
+      const campaign = campaigns.find(c => c.id.toString() === campaignId);
+      setCurrentCampaign(campaign);
+    }
+  };
+
+  // Update campaign data when campaigns load
+  useEffect(() => {
+    if (campaignId && campaigns.length > 0) {
+      loadCampaignData();
+    }
+  }, [campaignId, campaigns]);
+
   // Assistant Functions
   const loadAssistants = async () => {
     try {
-      const response = await getAssistants();
+      const response = await getAssistants(campaignId);
       setAssistants(response.data);
     } catch (error) {
       console.error('Error loading assistants:', error);
@@ -212,7 +257,7 @@ const InterviewDashboard = () => {
 
   const handleRegisterPhone = async (phoneNumber) => {
     try {
-      const response = await registerPhoneNumber(phoneNumber);
+      const response = await registerPhoneNumber(phoneNumber, campaignId);
       if (response.data.success) {
         setPhoneMessage('Number Registered with Vapi successfully!');
         setCallForm(prev => ({
@@ -293,6 +338,18 @@ const InterviewDashboard = () => {
         <p className="text-muted-foreground">
           AI-powered interview system with custom knowledge base and professional voice
         </p>
+        {currentCampaign && (
+          <div className="mt-4">
+            <Badge variant="outline" className="text-lg px-4 py-2">
+              Campaign: {currentCampaign.name}
+            </Badge>
+            {currentCampaign.description && (
+              <p className="text-sm text-muted-foreground mt-2">
+                {currentCampaign.description}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       <Tabs defaultValue="config" className="space-y-6">
