@@ -92,6 +92,12 @@ export const analyzeWebsite = (websiteUrl) => {
     const api = useAxios();
     return api.post('analyze-website/', { website_url: websiteUrl });
 };
+
+// ElevenLabs Voices
+export const getElevenLabsVoices = () => {
+    const api = useAxios();
+    return api.get('elevenlabs-voices/');
+};
 export const executeScheduledCalls = () => {
     const api = useAxios();
     return api.post('execute-scheduled-calls/');

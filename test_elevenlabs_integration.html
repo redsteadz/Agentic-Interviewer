@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ElevenLabs Integration Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; color: #155724; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; color: #0c5460; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        select { width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; }
+        .voice-option { margin: 5px 0; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 ElevenLabs Voice Integration Test</h1>
+        
+        <div class="test-section info">
+            <h3>Test Instructions</h3>
+            <ol>
+                <li>Make sure both backend (localhost:8000) and frontend (localhost:5177) are running</li>
+                <li>Open the frontend and login/register</li>
+                <li>Navigate to Interview Dashboard → Assistant Configuration</li>
+                <li>Change Voice Provider from "OpenAI" to "ElevenLabs"</li>
+                <li>Verify that Voice Selection dropdown updates with ElevenLabs voices</li>
+            </ol>
+        </div>
+
+        <div class="test-section">
+            <h3>🔬 ElevenLabs Voice Models</h3>
+            <p>When you select ElevenLabs as the voice provider, you should see these voices:</p>
+            
+            <div class="voice-option">
+                <strong>Rachel</strong> - Young American Female, Calm
+                <br><small>ID: 21m00Tcm4TlvDq8ikWAM</small>
+            </div>
+            
+            <div class="voice-option">
+                <strong>Antoni</strong> - Young American Male, Well-rounded
+                <br><small>ID: ErXwobaYiN019PkySvjV</small>
+            </div>
+            
+            <div class="voice-option">
+                <strong>Bella</strong> - Young American Female, Sweet
+                <br><small>ID: EXAVITQu4vr4xnSDxMaL</small>
+            </div>
+            
+            <div class="voice-option">
+                <strong>Adam</strong> - American Male, Deep
+                <br><small>ID: pNInz6obpgDQGcFmaJgB</small>
+            </div>
+            
+            <div class="voice-option">
+                <strong>Sam</strong> - American Male, Raspy
+                <br><small>ID: yoZ06aMxZJJ28mfd3POQ</small>
+            </div>
+            
+            <div class="voice-option">
+                <strong>Serena</strong> - American Female, Pleasant
+                <br><small>ID: jsCqWAovK2LkecY7zXl4</small>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>✅ Expected Behavior</h3>
+            <ul>
+                <li><strong>Voice Provider Selection:</strong> User can select "ElevenLabs" from dropdown</li>
+                <li><strong>Dynamic Voice Loading:</strong> Voice Selection dropdown updates automatically</li>
+                <li><strong>Loading State:</strong> Shows "Loading voices..." while fetching</li>
+                <li><strong>Voice Options:</strong> Displays all 14 ElevenLabs voices with descriptions</li>
+                <li><strong>Provider Switching:</strong> Switches back to OpenAI voices when changing provider</li>
+                <li><strong>Assistant Creation:</strong> Can create assistants with ElevenLabs voices</li>
+            </ul>
+        </div>
+
+        <div class="test-section success">
+            <h3>🎯 Testing Checklist</h3>
+            <ul style="list-style: none;">
+                <li>☐ Backend API endpoint /api/elevenlabs-voices/ returns voice data</li>
+                <li>☐ Frontend loads ElevenLabs voices when provider is selected</li>
+                <li>☐ Voice dropdown shows loading state during fetch</li>
+                <li>☐ All 14 ElevenLabs voices are displayed with names and descriptions</li>
+                <li>☐ Switching back to OpenAI resets to OpenAI voices</li>
+                <li>☐ Can create assistant with ElevenLabs voice selected</li>
+                <li>☐ Assistant displays correct voice provider and ID in assistant list</li>
+            </ul>
+        </div>
+
+        <div class="test-section info">
+            <h3>🔧 Manual Test Steps</h3>
+            <ol>
+                <li><strong>Open Frontend:</strong> Navigate to <a href="http://localhost:5177" target="_blank">localhost:5177</a></li>
+                <li><strong>Login:</strong> Use existing account or register new one</li>
+                <li><strong>Go to Interview Dashboard:</strong> Click "Go to Dashboard" then select a campaign</li>
+                <li><strong>Assistant Configuration:</strong> Click on "Assistant Configuration" tab</li>
+                <li><strong>Change Voice Provider:</strong> Select "ElevenLabs" from Voice Provider dropdown</li>
+                <li><strong>Verify Voice Loading:</strong> Check that Voice Selection dropdown updates</li>
+                <li><strong>Select Voice:</strong> Choose a voice like "Rachel (Young American Female, Calm)"</li>
+                <li><strong>Create Assistant:</strong> Fill in name and click "Create Assistant"</li>
+                <li><strong>Verify Creation:</strong> Check assistant appears in list with ElevenLabs voice</li>
+                <li><strong>Test Switch Back:</strong> Change provider back to OpenAI and verify reset</li>
+            </ol>
+        </div>
+
+        <div class="test-section">
+            <h3>🐛 Troubleshooting</h3>
+            <ul>
+                <li><strong>Voices not loading:</strong> Check browser console for API errors</li>
+                <li><strong>Authentication errors:</strong> Ensure you're logged into the frontend</li>
+                <li><strong>Backend errors:</strong> Check Django console for any server errors</li>
+                <li><strong>Frontend errors:</strong> Check browser dev tools console</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

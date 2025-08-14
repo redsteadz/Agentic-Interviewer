@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Voice Call Prompt Fix Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 900px; margin: 0 auto; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        .before { background-color: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+        .after { background-color: #d4edda; border-color: #c3e6cb; color: #155724; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; color: #0c5460; }
+        .conversation { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 10px 0; }
+        .ai-message { background: #e3f2fd; padding: 10px; margin: 5px 0; border-left: 4px solid #2196f3; }
+        .user-message { background: #f3e5f5; padding: 10px; margin: 5px 0; border-left: 4px solid #9c27b0; }
+        .improvement { background: #e8f5e8; padding: 10px; margin: 5px 0; border-left: 4px solid #4caf50; }
+        code { background: #f5f5f5; padding: 2px 4px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 Voice Call Interview Prompt Fix</h1>
+        
+        <div class="test-section info">
+            <h3>Problem Identified</h3>
+            <p>The AI agent was responding as if it was reading text messages instead of conducting a live voice call interview. This created confusion when candidates asked "Can you hear me?"</p>
+        </div>
+
+        <div class="test-section before">
+            <h3>❌ Before Fix - Incorrect Behavior</h3>
+            <div class="conversation">
+                <div class="ai-message">
+                    <strong>AI:</strong> Hello. I'm a professional AI interviewer. I'm here to conduct a thorough and comprehensive interview with you today. Please let me know when you're ready to begin.
+                </div>
+                <div class="user-message">
+                    <strong>User:</strong> Hey. Can you hear me?
+                </div>
+                <div class="ai-message">
+                    <strong>AI:</strong> ❌ Yes, I can hear you in the sense that I can read and respond to your text messages. How can I assist you today?
+                </div>
+                <div class="user-message">
+                    <strong>User:</strong> Okay. So thank you so much, but I'll call you later. Okay?
+                </div>
+                <div class="ai-message">
+                    <strong>AI:</strong> ❌ Of course. Feel free to reach out anytime. I'll be here whenever you need assistance.
+                </div>
+            </div>
+            <p><strong>Issues:</strong></p>
+            <ul>
+                <li>Agent mentions "text messages" during a voice call</li>
+                <li>Doesn't acknowledge it's a live phone conversation</li>
+                <li>Responds like a chatbot instead of a phone interviewer</li>
+                <li>Misses the interview context entirely</li>
+            </ul>
+        </div>
+
+        <div class="test-section after">
+            <h3>✅ After Fix - Correct Behavior</h3>
+            <div class="conversation">
+                <div class="ai-message">
+                    <strong>AI:</strong> Hello. I'm a professional business interviewer. I'm here to conduct a thorough interview with you today over the phone. Please let me know when you're ready to begin.
+                </div>
+                <div class="user-message">
+                    <strong>User:</strong> Hey. Can you hear me?
+                </div>
+                <div class="ai-message">
+                    <strong>AI:</strong> ✅ Yes, I can hear you clearly. Thank you for taking the time to speak with me today. Are you ready to begin our interview?
+                </div>
+                <div class="user-message">
+                    <strong>User:</strong> Actually, I need to call you back later. Is that okay?
+                </div>
+                <div class="ai-message">
+                    <strong>AI:</strong> ✅ Of course, I understand. Please feel free to call back when you're ready for the interview. I'll be available to conduct our professional discussion at your convenience.
+                </div>
+            </div>
+            <p><strong>Improvements:</strong></p>
+            <ul>
+                <li>Acknowledges it's a live voice call with "I can hear you clearly"</li>
+                <li>Maintains professional interview context</li>
+                <li>Uses phone conversation etiquette</li>
+                <li>Stays focused on the interview purpose</li>
+                <li>No mention of text messages or chat</li>
+            </ul>
+        </div>
+
+        <div class="test-section info">
+            <h3>🔧 Key Prompt Engineering Changes</h3>
+            <div class="improvement">
+                <strong>1. Voice Call Context Declaration:</strong>
+                <br><code>You are conducting a formal VOICE CALL interview. This is a LIVE PHONE CONVERSATION, not text messaging.</code>
+            </div>
+            
+            <div class="improvement">
+                <strong>2. Explicit Audio Acknowledgment:</strong>
+                <br><code>When they ask "Can you hear me?" respond "Yes, I can hear you clearly"</code>
+            </div>
+            
+            <div class="improvement">
+                <strong>3. Phone Conversation Patterns:</strong>
+                <br><code>Use conversational speech patterns appropriate for voice communication</code>
+            </div>
+            
+            <div class="improvement">
+                <strong>4. Real-time Context:</strong>
+                <br><code>This is a REAL-TIME VOICE CALL INTERVIEW - you are speaking to the candidate over the phone</code>
+            </div>
+            
+            <div class="improvement">
+                <strong>5. Phone Etiquette:</strong>
+                <br><code>Use phone conversation etiquette and natural speech patterns</code>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🧪 Testing the Fix</h3>
+            <ol>
+                <li><strong>Create New Assistant:</strong> Any new assistants created will use the updated prompt</li>
+                <li><strong>Test Voice Call:</strong> Make a call and ask "Can you hear me?"</li>
+                <li><strong>Expected Response:</strong> "Yes, I can hear you clearly" (not mentioning text messages)</li>
+                <li><strong>Verify Interview Context:</strong> Agent should maintain professional interview focus</li>
+                <li><strong>Check Phone Etiquette:</strong> Responses should sound natural for phone conversations</li>
+            </ol>
+        </div>
+
+        <div class="test-section">
+            <h3>📋 Updated System Prompt Highlights</h3>
+            <ul>
+                <li><strong>🎤 Voice Call Context Section:</strong> Explicitly states this is a phone conversation</li>
+                <li><strong>Audio Awareness:</strong> Acknowledges ability to hear the candidate</li>
+                <li><strong>Phone Conversation Etiquette:</strong> Uses appropriate speech patterns</li>
+                <li><strong>Real-time Response Training:</strong> Responds as if speaking live</li>
+                <li><strong>Professional Interview Focus:</strong> Maintains business interview context</li>
+                <li><strong>Natural Speech Patterns:</strong> Eliminates text-based language</li>
+            </ul>
+        </div>
+
+        <div class="test-section after">
+            <h3>🎯 Fix Status: IMPLEMENTED ✅</h3>
+            <p>The system prompt has been updated to ensure the AI interviewer:</p>
+            <ul>
+                <li>Recognizes it's conducting a live voice call interview</li>
+                <li>Responds appropriately to "Can you hear me?" questions</li>
+                <li>Uses phone conversation etiquette</li>
+                <li>Maintains professional interview context</li>
+                <li>Never mentions text messages during voice calls</li>
+            </ul>
+            <p><strong>All new assistants will use the improved prompt automatically!</strong></p>
+        </div>
+    </div>
+</body>
+</html>

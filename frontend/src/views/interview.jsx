@@ -8,7 +8,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Badge } from '../components/ui/badge';
 import { Alert, AlertDescription } from '../components/ui/alert';
-import { Loader2, Phone, User, Settings, Shield, CheckCircle, XCircle, Calendar, Clock } from 'lucide-react';
+import { Loader2, Phone, User, Settings, Shield, CheckCircle, XCircle, Calendar, Clock, FileText } from 'lucide-react';
 import { 
   getApiConfig, 
   updateApiConfig, 
@@ -24,7 +24,8 @@ import {
   scheduleCall,
   getScheduledCalls,
   deleteScheduledCall,
-  analyzeWebsite
+  analyzeWebsite,
+  getElevenLabsVoices
 } from '../utils/interviewApi';
 import { getCampaigns } from '../utils/campaign';
 
@@ -112,6 +113,10 @@ const InterviewDashboard = () => {
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [scheduledCalls, setScheduledCalls] = useState([]);
   const [scheduleMessage, setScheduleMessage] = useState('');
+  
+  // Voice Provider State
+  const [elevenLabsVoices, setElevenLabsVoices] = useState([]);
+  const [voicesLoading, setVoicesLoading] = useState(false);
 
   // Load initial data
   useEffect(() => {
@@ -130,6 +135,15 @@ const InterviewDashboard = () => {
       ...prev,
       campaign_id: campaignId || null
     }));
+  }, [campaignId]);
+
+  // Auto-refresh transcript data every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadAllCalls();
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
   }, [campaignId]);
 
   // Auto-refresh call details
@@ -279,6 +293,44 @@ const InterviewDashboard = () => {
     }
   };
 
+  // Voice Provider Functions
+  const loadElevenLabsVoices = async () => {
+    setVoicesLoading(true);
+    try {
+      const response = await getElevenLabsVoices();
+      if (response.data.success) {
+        setElevenLabsVoices(response.data.voices);
+        console.log('Loaded ElevenLabs voices:', response.data.voices);
+      } else {
+        console.error('Failed to load ElevenLabs voices:', response.data.error);
+      }
+    } catch (error) {
+      console.error('Error loading ElevenLabs voices:', error);
+    } finally {
+      setVoicesLoading(false);
+    }
+  };
+
+  // Effect to load voices when provider changes
+  useEffect(() => {
+    if (assistantForm.voice_provider === '11labs') {
+      loadElevenLabsVoices();
+      // Reset to first ElevenLabs voice when switching
+      if (elevenLabsVoices.length > 0) {
+        setAssistantForm(prev => ({
+          ...prev,
+          voice_id: elevenLabsVoices[0].voice_id
+        }));
+      }
+    } else {
+      // Reset to OpenAI default voice when switching back
+      setAssistantForm(prev => ({
+        ...prev,
+        voice_id: 'nova'
+      }));
+    }
+  }, [assistantForm.voice_provider, elevenLabsVoices.length]);
+
   // Transcript Functions
   const loadAllCalls = async () => {
     setTranscriptLoading(true);
@@ -412,6 +464,9 @@ const InterviewDashboard = () => {
       if (response.data.success) {
         setCurrentCall(response.data.call_data);
         await refreshCallDetails();
+        // Refresh transcript data to show the new call
+        await loadAllCalls();
+        setCallMessage('Call initiated successfully! Check the Transcripts tab for updates.');
       } else {
         alert(`Error: ${response.data.error}`);
       }
@@ -763,32 +818,33 @@ const InterviewDashboard = () => {
       </div>
 
       <Tabs defaultValue="config" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="config" className="flex items-center gap-2">
-            <Settings className="h-4 w-4" />
-            Configuration
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+          <TabsTrigger value="config" className="flex items-center gap-2 text-sm">
+            <Settings className="h-4 w-4 flex-shrink-0" />
+            <span className="truncate">Configuration</span>
           </TabsTrigger>
-          <TabsTrigger value="assistant" className="flex items-center gap-2">
-            <User className="h-4 w-4" />
-            Assistant
+          <TabsTrigger value="assistant" className="flex items-center gap-2 text-sm">
+            <User className="h-4 w-4 flex-shrink-0" />
+            <span className="truncate">Assistant</span>
           </TabsTrigger>
-          <TabsTrigger value="phones" className="flex items-center gap-2">
-            <Phone className="h-4 w-4" />
-            Phone Numbers
+          <TabsTrigger value="phones" className="flex items-center gap-2 text-sm">
+            <Phone className="h-4 w-4 flex-shrink-0" />
+            <span className="truncate hidden sm:inline">Phone Numbers</span>
+            <span className="truncate sm:hidden">Phones</span>
           </TabsTrigger>
-          <TabsTrigger value="calls" className="flex items-center gap-2">
-            <Shield className="h-4 w-4" />
-            Make Calls
+          <TabsTrigger value="calls" className="flex items-center gap-2 text-sm">
+            <Shield className="h-4 w-4 flex-shrink-0" />
+            <span className="truncate hidden sm:inline">Make Calls</span>
+            <span className="truncate sm:hidden">Calls</span>
           </TabsTrigger>
-          <TabsTrigger value="scheduled" className="flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
-            Schedule Calls
+          <TabsTrigger value="scheduled" className="flex items-center gap-2 text-sm">
+            <Calendar className="h-4 w-4 flex-shrink-0" />
+            <span className="truncate hidden sm:inline">Schedule Calls</span>
+            <span className="truncate sm:hidden">Schedule</span>
           </TabsTrigger>
-          <TabsTrigger value="transcripts" className="flex items-center gap-2">
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            Transcripts
+          <TabsTrigger value="transcripts" className="flex items-center gap-2 text-sm">
+            <FileText className="h-4 w-4 flex-shrink-0" />
+            <span className="truncate">Transcripts</span>
           </TabsTrigger>
         </TabsList>
 
@@ -962,14 +1018,39 @@ const InterviewDashboard = () => {
                         ...prev,
                         voice_id: e.target.value
                       }))}
+                      disabled={voicesLoading}
                     >
-                      <option value="nova">Nova (Professional Female)</option>
-                      <option value="onyx">Onyx (Professional Male)</option>
-                      <option value="alloy">Alloy (Neutral)</option>
-                      <option value="echo">Echo (Clear)</option>
-                      <option value="fable">Fable (Warm)</option>
-                      <option value="shimmer">Shimmer (Gentle)</option>
+                      {assistantForm.voice_provider === '11labs' ? (
+                        // ElevenLabs voices
+                        voicesLoading ? (
+                          <option value="">Loading voices...</option>
+                        ) : elevenLabsVoices.length > 0 ? (
+                          elevenLabsVoices.map((voice) => (
+                            <option key={voice.voice_id} value={voice.voice_id}>
+                              {voice.name} ({voice.description})
+                            </option>
+                          ))
+                        ) : (
+                          <option value="">No voices available</option>
+                        )
+                      ) : (
+                        // OpenAI voices (default)
+                        <>
+                          <option value="nova">Nova (Professional Female)</option>
+                          <option value="onyx">Onyx (Professional Male)</option>
+                          <option value="alloy">Alloy (Neutral)</option>
+                          <option value="echo">Echo (Clear)</option>
+                          <option value="fable">Fable (Warm)</option>
+                          <option value="shimmer">Shimmer (Gentle)</option>
+                        </>
+                      )}
                     </select>
+                    {voicesLoading && (
+                      <div className="text-sm text-gray-500 flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading ElevenLabs voices...
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -2077,9 +2158,7 @@ const InterviewDashboard = () => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
+                <FileText className="h-5 w-5" />
                 Call Transcripts
               </CardTitle>
               <CardDescription>
