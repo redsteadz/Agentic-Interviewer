@@ -53,6 +53,8 @@ urlpatterns = [
     path("scheduled-calls/", views.ScheduledCallListView.as_view(), name="scheduled_call_list"),
     path("scheduled-call/<int:call_id>/", views.ScheduledCallDetailView.as_view(), name="scheduled_call_detail"),
     path("execute-scheduled-calls/", views.ExecuteScheduledCallsView.as_view(), name="execute_scheduled_calls"),
+    # Website analysis endpoint
+    path("analyze-website/", views.AnalyzeWebsiteView.as_view(), name="analyze_website"),
     # Routes listing
     path("", views.getRoutes, name="routes"),
 ]

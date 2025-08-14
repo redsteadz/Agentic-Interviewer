@@ -20,9 +20,11 @@ import {
   registerPhoneNumber,
   makeCall,
   getCallDetails,
+  getCalls,
   scheduleCall,
   getScheduledCalls,
-  deleteScheduledCall
+  deleteScheduledCall,
+  analyzeWebsite
 } from '../utils/interviewApi';
 import { getCampaigns } from '../utils/campaign';
 
@@ -59,6 +61,21 @@ const InterviewDashboard = () => {
   const [assistantLoading, setAssistantLoading] = useState(false);
   const [assistantMessage, setAssistantMessage] = useState('');
   const [assistants, setAssistants] = useState([]);
+  
+  // Website Analysis State
+  const [websiteUrl, setWebsiteUrl] = useState('');
+  const [websiteAnalysis, setWebsiteAnalysis] = useState(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisMessage, setAnalysisMessage] = useState('');
+  const [aiKnowledgeBase, setAiKnowledgeBase] = useState({
+    summary: '',
+    topics: [],
+    keywords: []
+  });
+  const [showAddTopicModal, setShowAddTopicModal] = useState(false);
+  const [showAddKeywordModal, setShowAddKeywordModal] = useState(false);
+  const [newTopic, setNewTopic] = useState('');
+  const [newKeyword, setNewKeyword] = useState('');
 
   // Phone Numbers State
   const [twilioNumbers, setTwilioNumbers] = useState([]);
@@ -76,6 +93,12 @@ const InterviewDashboard = () => {
   const [currentCall, setCurrentCall] = useState(null);
   const [callDetails, setCallDetails] = useState(null);
 
+  // Transcript State
+  const [allCalls, setAllCalls] = useState([]);
+  const [transcriptLoading, setTranscriptLoading] = useState(false);
+  const [selectedCall, setSelectedCall] = useState(null);
+  const [transcriptSearch, setTranscriptSearch] = useState('');
+
   // Scheduled Call State
   const [scheduleForm, setScheduleForm] = useState({
     customer_number: '',
@@ -83,7 +106,8 @@ const InterviewDashboard = () => {
     vapi_assistant_id: '',
     scheduled_time: '',
     call_name: '',
-    notes: ''
+    notes: '',
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
   });
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [scheduledCalls, setScheduledCalls] = useState([]);
@@ -194,6 +218,22 @@ const InterviewDashboard = () => {
     }
   }, [campaignId, campaigns]);
 
+  // Load initial data
+  useEffect(() => {
+    loadApiConfig();
+    loadCampaigns();
+    loadAssistants();
+    loadAllCalls();
+  }, []);
+
+  // Load campaign-specific data when campaignId changes
+  useEffect(() => {
+    if (campaignId) {
+      loadAssistants();
+      loadAllCalls();
+    }
+  }, [campaignId]);
+
   // Assistant Functions
   const loadAssistants = async () => {
     try {
@@ -210,10 +250,20 @@ const InterviewDashboard = () => {
     setAssistantMessage('');
 
     try {
-      const response = await createAssistant(assistantForm);
+      // Combine AI Knowledge Base with manual knowledge
+      const combinedKnowledge = getCombinedKnowledge();
+      
+      // Create enhanced assistant form with combined knowledge
+      const enhancedAssistantForm = {
+        ...assistantForm,
+        knowledge_text: combinedKnowledge,
+        first_message: "Hello, I'm a professional AI interviewer. I'm here to conduct a thorough and comprehensive interview with you today. Please let me know when you're ready to begin, and I'll start with some questions based on your background and the role requirements."
+      };
+
+      const response = await createAssistant(enhancedAssistantForm);
       
       if (response.data.success) {
-        setAssistantMessage('Professional Interviewer Created Successfully!');
+        setAssistantMessage('Professional Interviewer Created Successfully with Enhanced Knowledge Base!');
         setCallForm(prev => ({
           ...prev,
           vapi_assistant_id: response.data.assistant_data.id
@@ -227,6 +277,68 @@ const InterviewDashboard = () => {
     } finally {
       setAssistantLoading(false);
     }
+  };
+
+  // Transcript Functions
+  const loadAllCalls = async () => {
+    setTranscriptLoading(true);
+    try {
+      const response = await getCalls(campaignId);
+      if (response.data) {
+        setAllCalls(response.data);
+        console.log('Loaded calls:', response.data);
+      }
+    } catch (error) {
+      console.error('Error loading calls:', error);
+    } finally {
+      setTranscriptLoading(false);
+    }
+  };
+
+  const loadCallTranscript = async (callId) => {
+    try {
+      const response = await getCallDetails(callId);
+      if (response.data && response.data.success) {
+        setSelectedCall(response.data.call);
+      }
+    } catch (error) {
+      console.error('Error loading call details:', error);
+    }
+  };
+
+  const formatTranscriptText = (transcript) => {
+    if (!transcript) return 'No transcript available';
+    
+    if (typeof transcript === 'string') {
+      return transcript;
+    }
+    
+    if (Array.isArray(transcript)) {
+      return transcript.map(item => {
+        if (typeof item === 'object' && item.role && item.message) {
+          return `${item.role.toUpperCase()}: ${item.message}`;
+        }
+        return item.toString();
+      }).join('\n\n');
+    }
+    
+    return JSON.stringify(transcript, null, 2);
+  };
+
+  const getFilteredCalls = () => {
+    if (!transcriptSearch.trim()) {
+      return allCalls;
+    }
+    
+    return allCalls.filter(call => {
+      const searchTerm = transcriptSearch.toLowerCase();
+      return (
+        call.customer_number?.toLowerCase().includes(searchTerm) ||
+        call.status?.toLowerCase().includes(searchTerm) ||
+        call.transcript_text?.toLowerCase().includes(searchTerm) ||
+        call.assistant?.name?.toLowerCase().includes(searchTerm)
+      );
+    });
   };
 
   // Phone Number Functions
@@ -369,15 +481,93 @@ const InterviewDashboard = () => {
         return;
       }
 
-      // Validate scheduled time is in the future
-      const scheduledDate = new Date(scheduleForm.scheduled_time);
-      if (scheduledDate <= new Date()) {
+      // Convert local datetime to UTC considering the selected timezone
+      const localDateTime = scheduleForm.scheduled_time;
+      const selectedTimezone = scheduleForm.timezone;
+      
+      // Create a date object treating the input as being in the selected timezone
+      const scheduledDate = new Date(localDateTime);
+      const now = new Date();
+      
+      console.log('Input datetime-local:', localDateTime);
+      console.log('Selected timezone:', selectedTimezone);
+      console.log('Parsed date (browser timezone):', scheduledDate);
+      console.log('Current time:', now);
+      
+      if (scheduledDate <= now) {
         setScheduleMessage('Scheduled time must be in the future');
         setScheduleLoading(false);
         return;
       }
 
-      const response = await scheduleCall(scheduleForm);
+      // Convert to UTC for backend storage
+      // The datetime-local input gives us a "naive" time that we want to interpret as being in the selected timezone
+      
+      // Parse the date and time components
+      const [datePart, timePart] = localDateTime.split('T');
+      const [year, month, day] = datePart.split('-').map(Number);
+      const [hours, minutes] = timePart.split(':').map(Number);
+      
+      // Create a date string that represents the desired time in the selected timezone
+      const dateTimeString = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+      
+      // Use Intl API to properly handle the timezone conversion
+      // This creates a date that represents the specified time in the selected timezone
+      const dateInSelectedTZ = new Date(dateTimeString);
+      
+      // Get what this date would be when interpreted in the selected timezone
+      const utcOffset = new Date().getTimezoneOffset(); // Browser's timezone offset in minutes
+      
+      // Proper timezone conversion using a much simpler approach
+      // The goal: if user selects 3:30 AM in Asia/Karachi, we need the UTC time that represents 3:30 AM in that timezone
+      let utcTime;
+      try {
+        // Simple and reliable method: manually calculate based on known timezone offset
+        const inputDate = new Date(dateTimeString);
+        
+        // For Asia/Karachi (PKT), which is UTC+5:
+        // If user wants 3:30 AM PKT, the UTC time should be 3:30 - 5 = 22:30 UTC (previous day)
+        
+        // Get timezone offset for the selected timezone at the given date
+        // Create a temporary date to find the offset
+        const tempUtc = new Date(dateTimeString + 'Z'); // Treat as UTC
+        const tempLocal = new Date(tempUtc.toLocaleString('sv-SE', {timeZone: selectedTimezone}));
+        const offsetMs = tempUtc.getTime() - tempLocal.getTime();
+        
+        // Apply the offset to convert from selected timezone to UTC
+        utcTime = new Date(inputDate.getTime() + offsetMs);
+        
+        console.log('=== Timezone Conversion Debug ===');
+        console.log('Input time:', localDateTime);
+        console.log('Selected timezone:', selectedTimezone);
+        console.log('Input as date object:', inputDate.toISOString());
+        console.log('Temp UTC date:', tempUtc.toISOString());
+        console.log('Temp local date:', tempLocal.toISOString());
+        console.log('Calculated offset (ms):', offsetMs);
+        console.log('Calculated offset (hours):', offsetMs / (1000 * 60 * 60));
+        console.log('Final UTC time:', utcTime.toISOString());
+        console.log('Verification - UTC time in selected TZ:', utcTime.toLocaleString('sv-SE', {timeZone: selectedTimezone}));
+        
+      } catch (error) {
+        console.error('Timezone conversion error:', error);
+        // Fallback: treat as UTC
+        utcTime = new Date(dateTimeString + 'Z');
+      }
+      
+      const scheduleData = {
+        ...scheduleForm,
+        scheduled_time: utcTime.toISOString(),
+        timezone: selectedTimezone
+      };
+      
+      console.log('Original input time:', localDateTime);
+      console.log('Selected timezone:', selectedTimezone);
+      console.log('Parsed date/time:', {year, month, day, hours, minutes});
+      console.log('Date string:', dateTimeString);
+      console.log('Final UTC time:', utcTime.toISOString());
+      console.log('Sending schedule data:', scheduleData);
+      
+      const response = await scheduleCall(scheduleData);
       if (response.data.success) {
         setScheduleMessage('Call scheduled successfully!');
         setScheduleForm({
@@ -386,7 +576,8 @@ const InterviewDashboard = () => {
           vapi_assistant_id: '',
           scheduled_time: '',
           call_name: '',
-          notes: ''
+          notes: '',
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
         });
         await loadScheduledCalls();
       } else {
@@ -413,6 +604,111 @@ const InterviewDashboard = () => {
     }
   };
 
+  // Website Analysis Functions
+  const handleAnalyzeWebsite = async () => {
+    if (!websiteUrl.trim()) {
+      setAnalysisMessage('Please enter a website URL');
+      return;
+    }
+
+    setAnalysisLoading(true);
+    setAnalysisMessage('');
+    console.log('Starting website analysis for:', websiteUrl);
+
+    try {
+      const response = await analyzeWebsite(websiteUrl);
+      console.log('Received response:', response);
+      console.log('Response data keys:', Object.keys(response.data));
+      
+      if (response.data && response.data.success) {
+        console.log('Analysis data:', response.data.analysis);
+        console.log('Analysis keys:', Object.keys(response.data.analysis));
+        
+        // Ensure the analysis data has the expected structure
+        const analysisData = response.data.analysis;
+        const processedAnalysis = {
+          summary: analysisData.summary || 'No summary available',
+          company_details: {
+            name: analysisData.company_details?.name || 'Unknown Company',
+            industry: analysisData.company_details?.industry || 'Unknown Industry',
+            location: analysisData.company_details?.location || 'Unknown Location'
+          },
+          article_topics: Array.isArray(analysisData.article_topics) ? analysisData.article_topics : [],
+          keywords: Array.isArray(analysisData.keywords) ? analysisData.keywords : []
+        };
+        
+        console.log('Processed analysis:', processedAnalysis);
+        setWebsiteAnalysis(processedAnalysis);
+        setAnalysisMessage('Website analyzed successfully!');
+        
+        // Auto-store in AI Knowledge Base (separate from manual knowledge)
+        setAiKnowledgeBase({
+          summary: processedAnalysis.summary || '',
+          topics: processedAnalysis.article_topics || [],
+          keywords: processedAnalysis.keywords || []
+        });
+        
+        // Note: Interview Knowledge Base (knowledge_text) is kept separate for additional manual information
+      } else {
+        console.error('Analysis failed:', response.data?.error || 'Unknown error');
+        setAnalysisMessage(`Error: ${response.data?.error || 'Analysis failed'}`);
+      }
+    } catch (error) {
+      console.error('Analysis error:', error);
+      console.error('Error details:', error.response?.data);
+      setAnalysisMessage(`Error: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
+
+  // AI Knowledge Base Management Functions
+  const handleRemoveTopic = (topicIndex) => {
+    setAiKnowledgeBase(prev => ({
+      ...prev,
+      topics: prev.topics.filter((_, index) => index !== topicIndex)
+    }));
+  };
+
+  const handleRemoveKeyword = (keywordIndex) => {
+    setAiKnowledgeBase(prev => ({
+      ...prev,
+      keywords: prev.keywords.filter((_, index) => index !== keywordIndex)
+    }));
+  };
+
+  const handleAddNewTopic = () => {
+    if (newTopic.trim()) {
+      setAiKnowledgeBase(prev => ({
+        ...prev,
+        topics: [...prev.topics, newTopic.trim()]
+      }));
+      setNewTopic('');
+      setShowAddTopicModal(false);
+    }
+  };
+
+  const handleAddNewKeyword = () => {
+    if (newKeyword.trim()) {
+      setAiKnowledgeBase(prev => ({
+        ...prev,
+        keywords: [...prev.keywords, newKeyword.trim()]
+      }));
+      setNewKeyword('');
+      setShowAddKeywordModal(false);
+    }
+  };
+
+  // Helper function to combine AI Knowledge Base with manual knowledge for the assistant
+  const getCombinedKnowledge = () => {
+    const aiSummary = aiKnowledgeBase.summary ? `Business Summary: ${aiKnowledgeBase.summary}\n\n` : '';
+    const aiTopics = aiKnowledgeBase.topics.length > 0 ? `Article Topics: ${aiKnowledgeBase.topics.join(', ')}\n\n` : '';
+    const aiKeywords = aiKnowledgeBase.keywords.length > 0 ? `Keywords: ${aiKnowledgeBase.keywords.join(', ')}\n\n` : '';
+    const manualKnowledge = assistantForm.knowledge_text ? `Additional Information: ${assistantForm.knowledge_text}` : '';
+    
+    return `${aiSummary}${aiTopics}${aiKeywords}${manualKnowledge}`.trim();
+  };
+
   const getScheduleStatusColor = (status) => {
     switch(status) {
       case 'scheduled': return 'bg-blue-100 text-blue-800';
@@ -424,11 +720,22 @@ const InterviewDashboard = () => {
     }
   };
 
-  const formatScheduledTime = (timeString) => {
+  const formatScheduledTime = (timeString, displayTimezone = null) => {
     const date = new Date(timeString);
-    // If the date string ends with 'Z' or has timezone info, it's already in UTC
-    // Convert to local time for display
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    // If no specific timezone provided, use browser's local time
+    const timezone = displayTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+    
+    return date.toLocaleDateString("en-US", {
+      timeZone: timezone,
+      year: 'numeric',
+      month: 'numeric', 
+      day: 'numeric'
+    }) + ' ' + date.toLocaleTimeString("en-US", {
+      timeZone: timezone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
   };
 
   return (
@@ -476,6 +783,12 @@ const InterviewDashboard = () => {
           <TabsTrigger value="scheduled" className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
             Schedule Calls
+          </TabsTrigger>
+          <TabsTrigger value="transcripts" className="flex items-center gap-2">
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Transcripts
           </TabsTrigger>
         </TabsList>
 
@@ -660,8 +973,263 @@ const InterviewDashboard = () => {
                   </div>
                 </div>
 
+                {/* Website Analysis Section */}
+                <div className="border rounded-lg p-6 space-y-6 bg-white shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
+                      <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">Website Analysis</h3>
+                      <p className="text-sm text-gray-600">Enter a website URL to automatically extract business insights</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <Input
+                        placeholder="https://example.com"
+                        value={websiteUrl}
+                        onChange={(e) => setWebsiteUrl(e.target.value)}
+                        className="h-11 border-gray-300 focus:border-blue-500"
+                      />
+                    </div>
+                    <Button 
+                      type="button"
+                      onClick={handleAnalyzeWebsite}
+                      disabled={analysisLoading}
+                      className="h-11 px-6 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white"
+                    >
+                      {analysisLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      {analysisLoading ? 'Analyzing...' : 'Analyze Website'}
+                    </Button>
+                  </div>
+
+                  {analysisMessage && (
+                    <Alert className={analysisMessage.includes('Error') ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}>
+                      <AlertDescription className={analysisMessage.includes('Error') ? 'text-red-800' : 'text-green-800'}>
+                        {analysisMessage}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {websiteAnalysis && (
+                    <div className="space-y-6 border-t border-gray-200 pt-6">
+                      {/* Header with sync info */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-sm text-blue-600">
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          Analysis Complete
+                        </div>
+                        <span className="text-xs text-gray-500">Just now</span>
+                      </div>
+
+                      {/* Company Information Card */}
+                      <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <div className="h-8 w-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                              <svg className="h-4 w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-4m-5 0H3m2 0h3M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                              </svg>
+                            </div>
+                            <h4 className="font-semibold text-gray-900">Business Information</h4>
+                          </div>
+                          <Button variant="outline" size="sm" className="text-blue-600 border-blue-200 hover:bg-blue-50">
+                            Edit
+                          </Button>
+                        </div>
+                        
+                        <div className="space-y-3">
+                          {websiteAnalysis.company_details?.name && (
+                            <div>
+                              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Company Name</label>
+                              <div className="mt-1 text-sm font-medium text-gray-900">{websiteAnalysis.company_details.name}</div>
+                            </div>
+                          )}
+                          
+                          {websiteAnalysis.company_details?.industry && (
+                            <div>
+                              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Industry</label>
+                              <div className="mt-1 text-sm text-gray-700">{websiteAnalysis.company_details.industry}</div>
+                            </div>
+                          )}
+                          
+                          {websiteAnalysis.summary && (
+                            <div>
+                              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Business Summary</label>
+                              <div className="mt-1 text-sm text-gray-700 leading-relaxed">{websiteAnalysis.summary}</div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Article Topics Section */}
+                      {(aiKnowledgeBase.topics.length > 0 || websiteAnalysis?.article_topics?.length > 0) && (
+                        <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <div className="h-8 w-8 bg-green-100 rounded-lg flex items-center justify-center">
+                                <svg className="h-4 w-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                              </div>
+                              <h4 className="font-semibold text-gray-900">Article Topics</h4>
+                              <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                                {aiKnowledgeBase.topics.length} topics
+                              </span>
+                            </div>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="text-green-600 border-green-200 hover:bg-green-50"
+                              onClick={() => setShowAddTopicModal(true)}
+                            >
+                              ➕ Add Topic
+                            </Button>
+                          </div>
+                          
+                          <div className="flex flex-wrap gap-2">
+                            {aiKnowledgeBase.topics.map((topic, index) => (
+                              <div key={index} className="relative group">
+                                <Badge 
+                                  variant="secondary" 
+                                  className="bg-white border border-gray-300 text-gray-700 hover:bg-green-50 hover:border-green-300 transition-colors pr-8"
+                                >
+                                  {topic}
+                                  <button
+                                    onClick={() => handleRemoveTopic(index)}
+                                    className="absolute right-1 top-1/2 transform -translate-y-1/2 text-red-500 hover:text-red-700 text-xs"
+                                  >
+                                    ✕
+                                  </button>
+                                </Badge>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Keywords Section */}
+                      {(aiKnowledgeBase.keywords.length > 0 || websiteAnalysis?.keywords?.length > 0) && (
+                        <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <div className="h-8 w-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                                <svg className="h-4 w-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                                </svg>
+                              </div>
+                              <h4 className="font-semibold text-gray-900">Keywords</h4>
+                              <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                                {aiKnowledgeBase.keywords.length} keywords
+                              </span>
+                            </div>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="text-purple-600 border-purple-200 hover:bg-purple-50"
+                              onClick={() => setShowAddKeywordModal(true)}
+                            >
+                              ➕ Add Keyword
+                            </Button>
+                          </div>
+                          
+                          <div className="flex flex-wrap gap-2">
+                            {aiKnowledgeBase.keywords.map((keyword, index) => (
+                              <div key={index} className="relative group">
+                                <Badge 
+                                  variant="outline" 
+                                  className="bg-white border border-gray-300 text-gray-700 hover:bg-purple-50 hover:border-purple-300 transition-colors pr-8"
+                                >
+                                  {keyword}
+                                  <button
+                                    onClick={() => handleRemoveKeyword(index)}
+                                    className="absolute right-1 top-1/2 transform -translate-y-1/2 text-red-500 hover:text-red-700 text-xs"
+                                  >
+                                    ✕
+                                  </button>
+                                </Badge>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Add Topic Modal */}
+                {showAddTopicModal && (
+                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-6 w-96 max-w-90vw">
+                      <h3 className="text-lg font-semibold mb-4">Add New Article Topic</h3>
+                      <input
+                        type="text"
+                        value={newTopic}
+                        onChange={(e) => setNewTopic(e.target.value)}
+                        placeholder="Enter article topic..."
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        onKeyPress={(e) => e.key === 'Enter' && handleAddNewTopic()}
+                      />
+                      <div className="flex gap-3 mt-4">
+                        <Button 
+                          onClick={handleAddNewTopic}
+                          className="flex-1 bg-green-600 hover:bg-green-700"
+                        >
+                          Add Topic
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          onClick={() => {setShowAddTopicModal(false); setNewTopic('');}}
+                          className="flex-1"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Add Keyword Modal */}
+                {showAddKeywordModal && (
+                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-6 w-96 max-w-90vw">
+                      <h3 className="text-lg font-semibold mb-4">Add New Keyword</h3>
+                      <input
+                        type="text"
+                        value={newKeyword}
+                        onChange={(e) => setNewKeyword(e.target.value)}
+                        placeholder="Enter keyword..."
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        onKeyPress={(e) => e.key === 'Enter' && handleAddNewKeyword()}
+                      />
+                      <div className="flex gap-3 mt-4">
+                        <Button 
+                          onClick={handleAddNewKeyword}
+                          className="flex-1 bg-purple-600 hover:bg-purple-700"
+                        >
+                          Add Keyword
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          onClick={() => {setShowAddKeywordModal(false); setNewKeyword('');}}
+                          className="flex-1"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-2">
-                  <Label htmlFor="knowledgeText">Interview Knowledge Base (Text)</Label>
+                  <Label htmlFor="knowledgeText">Additional Interview Knowledge (Manual Input)</Label>
+                  <p className="text-sm text-gray-600">Add extra information beyond the website analysis that you want the AI agent to know about.</p>
                   <Textarea
                     id="knowledgeText"
                     rows={6}
@@ -670,7 +1238,7 @@ const InterviewDashboard = () => {
                       ...prev,
                       knowledge_text: e.target.value
                     }))}
-                    placeholder="Enter interview topics, company information, role requirements, or specific areas to focus on during the interview..."
+                    placeholder="Enter additional interview topics, specific role requirements, company culture details, or any other information you want the AI agent to know about..."
                   />
                 </div>
 
@@ -1077,6 +1645,331 @@ const InterviewDashboard = () => {
                         required
                       />
                     </div>
+
+                    <div>
+                      <Label htmlFor="timezone">Your Timezone *</Label>
+                      <select
+                        id="timezone"
+                        className="w-full border border-gray-300 rounded-md px-3 py-2"
+                        value={scheduleForm.timezone}
+                        onChange={(e) => setScheduleForm(prev => ({
+                          ...prev,
+                          timezone: e.target.value
+                        }))}
+                        required
+                      >
+                        <optgroup label="Common Timezones">
+                          <option value="America/New_York">Eastern Time (New York)</option>
+                          <option value="America/Chicago">Central Time (Chicago)</option>
+                          <option value="America/Denver">Mountain Time (Denver)</option>
+                          <option value="America/Los_Angeles">Pacific Time (Los Angeles)</option>
+                          <option value="Europe/London">GMT (London)</option>
+                          <option value="Europe/Paris">CET (Paris)</option>
+                          <option value="Asia/Dubai">GST (Dubai)</option>
+                          <option value="Asia/Karachi">PKT (Karachi)</option>
+                          <option value="Asia/Kolkata">IST (India)</option>
+                          <option value="Asia/Shanghai">CST (China)</option>
+                          <option value="Asia/Tokyo">JST (Tokyo)</option>
+                          <option value="Australia/Sydney">AEST (Sydney)</option>
+                        </optgroup>
+                        <optgroup label="All Timezones">
+                          <option value="UTC">UTC</option>
+                          <option value="America/Adak">America/Adak</option>
+                          <option value="America/Anchorage">America/Anchorage</option>
+                          <option value="America/Anguilla">America/Anguilla</option>
+                          <option value="America/Antigua">America/Antigua</option>
+                          <option value="America/Araguaina">America/Araguaina</option>
+                          <option value="America/Argentina/Buenos_Aires">America/Argentina/Buenos_Aires</option>
+                          <option value="America/Aruba">America/Aruba</option>
+                          <option value="America/Asuncion">America/Asuncion</option>
+                          <option value="America/Atikokan">America/Atikokan</option>
+                          <option value="America/Bahia">America/Bahia</option>
+                          <option value="America/Bahia_Banderas">America/Bahia_Banderas</option>
+                          <option value="America/Barbados">America/Barbados</option>
+                          <option value="America/Belem">America/Belem</option>
+                          <option value="America/Belize">America/Belize</option>
+                          <option value="America/Blanc-Sablon">America/Blanc-Sablon</option>
+                          <option value="America/Boa_Vista">America/Boa_Vista</option>
+                          <option value="America/Bogota">America/Bogota</option>
+                          <option value="America/Boise">America/Boise</option>
+                          <option value="America/Cambridge_Bay">America/Cambridge_Bay</option>
+                          <option value="America/Campo_Grande">America/Campo_Grande</option>
+                          <option value="America/Cancun">America/Cancun</option>
+                          <option value="America/Caracas">America/Caracas</option>
+                          <option value="America/Cayenne">America/Cayenne</option>
+                          <option value="America/Cayman">America/Cayman</option>
+                          <option value="America/Chicago">America/Chicago</option>
+                          <option value="America/Chihuahua">America/Chihuahua</option>
+                          <option value="America/Costa_Rica">America/Costa_Rica</option>
+                          <option value="America/Creston">America/Creston</option>
+                          <option value="America/Cuiaba">America/Cuiaba</option>
+                          <option value="America/Curacao">America/Curacao</option>
+                          <option value="America/Danmarkshavn">America/Danmarkshavn</option>
+                          <option value="America/Dawson">America/Dawson</option>
+                          <option value="America/Dawson_Creek">America/Dawson_Creek</option>
+                          <option value="America/Denver">America/Denver</option>
+                          <option value="America/Detroit">America/Detroit</option>
+                          <option value="America/Dominica">America/Dominica</option>
+                          <option value="America/Edmonton">America/Edmonton</option>
+                          <option value="America/Eirunepe">America/Eirunepe</option>
+                          <option value="America/El_Salvador">America/El_Salvador</option>
+                          <option value="America/Fort_Nelson">America/Fort_Nelson</option>
+                          <option value="America/Fortaleza">America/Fortaleza</option>
+                          <option value="America/Glace_Bay">America/Glace_Bay</option>
+                          <option value="America/Godthab">America/Godthab</option>
+                          <option value="America/Goose_Bay">America/Goose_Bay</option>
+                          <option value="America/Grand_Turk">America/Grand_Turk</option>
+                          <option value="America/Grenada">America/Grenada</option>
+                          <option value="America/Guadeloupe">America/Guadeloupe</option>
+                          <option value="America/Guatemala">America/Guatemala</option>
+                          <option value="America/Guayaquil">America/Guayaquil</option>
+                          <option value="America/Guyana">America/Guyana</option>
+                          <option value="America/Halifax">America/Halifax</option>
+                          <option value="America/Havana">America/Havana</option>
+                          <option value="America/Hermosillo">America/Hermosillo</option>
+                          <option value="America/Indiana/Indianapolis">America/Indiana/Indianapolis</option>
+                          <option value="America/Indiana/Knox">America/Indiana/Knox</option>
+                          <option value="America/Indiana/Marengo">America/Indiana/Marengo</option>
+                          <option value="America/Indiana/Petersburg">America/Indiana/Petersburg</option>
+                          <option value="America/Indiana/Tell_City">America/Indiana/Tell_City</option>
+                          <option value="America/Indiana/Vevay">America/Indiana/Vevay</option>
+                          <option value="America/Indiana/Vincennes">America/Indiana/Vincennes</option>
+                          <option value="America/Indiana/Winamac">America/Indiana/Winamac</option>
+                          <option value="America/Inuvik">America/Inuvik</option>
+                          <option value="America/Iqaluit">America/Iqaluit</option>
+                          <option value="America/Jamaica">America/Jamaica</option>
+                          <option value="America/Juneau">America/Juneau</option>
+                          <option value="America/Kentucky/Louisville">America/Kentucky/Louisville</option>
+                          <option value="America/Kentucky/Monticello">America/Kentucky/Monticello</option>
+                          <option value="America/Kralendijk">America/Kralendijk</option>
+                          <option value="America/La_Paz">America/La_Paz</option>
+                          <option value="America/Lima">America/Lima</option>
+                          <option value="America/Los_Angeles">America/Los_Angeles</option>
+                          <option value="America/Lower_Princes">America/Lower_Princes</option>
+                          <option value="America/Maceio">America/Maceio</option>
+                          <option value="America/Managua">America/Managua</option>
+                          <option value="America/Manaus">America/Manaus</option>
+                          <option value="America/Marigot">America/Marigot</option>
+                          <option value="America/Martinique">America/Martinique</option>
+                          <option value="America/Matamoros">America/Matamoros</option>
+                          <option value="America/Mazatlan">America/Mazatlan</option>
+                          <option value="America/Menominee">America/Menominee</option>
+                          <option value="America/Merida">America/Merida</option>
+                          <option value="America/Metlakatla">America/Metlakatla</option>
+                          <option value="America/Mexico_City">America/Mexico_City</option>
+                          <option value="America/Miquelon">America/Miquelon</option>
+                          <option value="America/Moncton">America/Moncton</option>
+                          <option value="America/Monterrey">America/Monterrey</option>
+                          <option value="America/Montevideo">America/Montevideo</option>
+                          <option value="America/Montserrat">America/Montserrat</option>
+                          <option value="America/Nassau">America/Nassau</option>
+                          <option value="America/New_York">America/New_York</option>
+                          <option value="America/Nipigon">America/Nipigon</option>
+                          <option value="America/Nome">America/Nome</option>
+                          <option value="America/Noronha">America/Noronha</option>
+                          <option value="America/North_Dakota/Beulah">America/North_Dakota/Beulah</option>
+                          <option value="America/North_Dakota/Center">America/North_Dakota/Center</option>
+                          <option value="America/North_Dakota/New_Salem">America/North_Dakota/New_Salem</option>
+                          <option value="America/Ojinaga">America/Ojinaga</option>
+                          <option value="America/Panama">America/Panama</option>
+                          <option value="America/Pangnirtung">America/Pangnirtung</option>
+                          <option value="America/Paramaribo">America/Paramaribo</option>
+                          <option value="America/Phoenix">America/Phoenix</option>
+                          <option value="America/Port-au-Prince">America/Port-au-Prince</option>
+                          <option value="America/Port_of_Spain">America/Port_of_Spain</option>
+                          <option value="America/Porto_Velho">America/Porto_Velho</option>
+                          <option value="America/Puerto_Rico">America/Puerto_Rico</option>
+                          <option value="America/Punta_Arenas">America/Punta_Arenas</option>
+                          <option value="America/Rainy_River">America/Rainy_River</option>
+                          <option value="America/Rankin_Inlet">America/Rankin_Inlet</option>
+                          <option value="America/Recife">America/Recife</option>
+                          <option value="America/Regina">America/Regina</option>
+                          <option value="America/Resolute">America/Resolute</option>
+                          <option value="America/Rio_Branco">America/Rio_Branco</option>
+                          <option value="America/Santarem">America/Santarem</option>
+                          <option value="America/Santiago">America/Santiago</option>
+                          <option value="America/Santo_Domingo">America/Santo_Domingo</option>
+                          <option value="America/Sao_Paulo">America/Sao_Paulo</option>
+                          <option value="America/Scoresbysund">America/Scoresbysund</option>
+                          <option value="America/Sitka">America/Sitka</option>
+                          <option value="America/St_Barthelemy">America/St_Barthelemy</option>
+                          <option value="America/St_Johns">America/St_Johns</option>
+                          <option value="America/St_Kitts">America/St_Kitts</option>
+                          <option value="America/St_Lucia">America/St_Lucia</option>
+                          <option value="America/St_Thomas">America/St_Thomas</option>
+                          <option value="America/St_Vincent">America/St_Vincent</option>
+                          <option value="America/Swift_Current">America/Swift_Current</option>
+                          <option value="America/Tegucigalpa">America/Tegucigalpa</option>
+                          <option value="America/Thule">America/Thule</option>
+                          <option value="America/Thunder_Bay">America/Thunder_Bay</option>
+                          <option value="America/Tijuana">America/Tijuana</option>
+                          <option value="America/Toronto">America/Toronto</option>
+                          <option value="America/Tortola">America/Tortola</option>
+                          <option value="America/Vancouver">America/Vancouver</option>
+                          <option value="America/Whitehorse">America/Whitehorse</option>
+                          <option value="America/Winnipeg">America/Winnipeg</option>
+                          <option value="America/Yakutat">America/Yakutat</option>
+                          <option value="America/Yellowknife">America/Yellowknife</option>
+                          <option value="Asia/Aden">Asia/Aden</option>
+                          <option value="Asia/Almaty">Asia/Almaty</option>
+                          <option value="Asia/Amman">Asia/Amman</option>
+                          <option value="Asia/Anadyr">Asia/Anadyr</option>
+                          <option value="Asia/Aqtau">Asia/Aqtau</option>
+                          <option value="Asia/Aqtobe">Asia/Aqtobe</option>
+                          <option value="Asia/Ashgabat">Asia/Ashgabat</option>
+                          <option value="Asia/Atyrau">Asia/Atyrau</option>
+                          <option value="Asia/Baghdad">Asia/Baghdad</option>
+                          <option value="Asia/Bahrain">Asia/Bahrain</option>
+                          <option value="Asia/Baku">Asia/Baku</option>
+                          <option value="Asia/Bangkok">Asia/Bangkok</option>
+                          <option value="Asia/Barnaul">Asia/Barnaul</option>
+                          <option value="Asia/Beirut">Asia/Beirut</option>
+                          <option value="Asia/Bishkek">Asia/Bishkek</option>
+                          <option value="Asia/Brunei">Asia/Brunei</option>
+                          <option value="Asia/Chita">Asia/Chita</option>
+                          <option value="Asia/Choibalsan">Asia/Choibalsan</option>
+                          <option value="Asia/Colombo">Asia/Colombo</option>
+                          <option value="Asia/Damascus">Asia/Damascus</option>
+                          <option value="Asia/Dhaka">Asia/Dhaka</option>
+                          <option value="Asia/Dili">Asia/Dili</option>
+                          <option value="Asia/Dubai">Asia/Dubai</option>
+                          <option value="Asia/Dushanbe">Asia/Dushanbe</option>
+                          <option value="Asia/Famagusta">Asia/Famagusta</option>
+                          <option value="Asia/Gaza">Asia/Gaza</option>
+                          <option value="Asia/Hebron">Asia/Hebron</option>
+                          <option value="Asia/Ho_Chi_Minh">Asia/Ho_Chi_Minh</option>
+                          <option value="Asia/Hong_Kong">Asia/Hong_Kong</option>
+                          <option value="Asia/Hovd">Asia/Hovd</option>
+                          <option value="Asia/Irkutsk">Asia/Irkutsk</option>
+                          <option value="Asia/Jakarta">Asia/Jakarta</option>
+                          <option value="Asia/Jayapura">Asia/Jayapura</option>
+                          <option value="Asia/Jerusalem">Asia/Jerusalem</option>
+                          <option value="Asia/Kabul">Asia/Kabul</option>
+                          <option value="Asia/Kamchatka">Asia/Kamchatka</option>
+                          <option value="Asia/Karachi">Asia/Karachi</option>
+                          <option value="Asia/Kathmandu">Asia/Kathmandu</option>
+                          <option value="Asia/Khandyga">Asia/Khandyga</option>
+                          <option value="Asia/Kolkata">Asia/Kolkata</option>
+                          <option value="Asia/Krasnoyarsk">Asia/Krasnoyarsk</option>
+                          <option value="Asia/Kuala_Lumpur">Asia/Kuala_Lumpur</option>
+                          <option value="Asia/Kuching">Asia/Kuching</option>
+                          <option value="Asia/Kuwait">Asia/Kuwait</option>
+                          <option value="Asia/Macau">Asia/Macau</option>
+                          <option value="Asia/Magadan">Asia/Magadan</option>
+                          <option value="Asia/Makassar">Asia/Makassar</option>
+                          <option value="Asia/Manila">Asia/Manila</option>
+                          <option value="Asia/Muscat">Asia/Muscat</option>
+                          <option value="Asia/Nicosia">Asia/Nicosia</option>
+                          <option value="Asia/Novokuznetsk">Asia/Novokuznetsk</option>
+                          <option value="Asia/Novosibirsk">Asia/Novosibirsk</option>
+                          <option value="Asia/Omsk">Asia/Omsk</option>
+                          <option value="Asia/Oral">Asia/Oral</option>
+                          <option value="Asia/Phnom_Penh">Asia/Phnom_Penh</option>
+                          <option value="Asia/Pontianak">Asia/Pontianak</option>
+                          <option value="Asia/Pyongyang">Asia/Pyongyang</option>
+                          <option value="Asia/Qatar">Asia/Qatar</option>
+                          <option value="Asia/Qyzylorda">Asia/Qyzylorda</option>
+                          <option value="Asia/Riyadh">Asia/Riyadh</option>
+                          <option value="Asia/Sakhalin">Asia/Sakhalin</option>
+                          <option value="Asia/Samarkand">Asia/Samarkand</option>
+                          <option value="Asia/Seoul">Asia/Seoul</option>
+                          <option value="Asia/Shanghai">Asia/Shanghai</option>
+                          <option value="Asia/Singapore">Asia/Singapore</option>
+                          <option value="Asia/Srednekolymsk">Asia/Srednekolymsk</option>
+                          <option value="Asia/Taipei">Asia/Taipei</option>
+                          <option value="Asia/Tashkent">Asia/Tashkent</option>
+                          <option value="Asia/Tbilisi">Asia/Tbilisi</option>
+                          <option value="Asia/Tehran">Asia/Tehran</option>
+                          <option value="Asia/Thimphu">Asia/Thimphu</option>
+                          <option value="Asia/Tokyo">Asia/Tokyo</option>
+                          <option value="Asia/Tomsk">Asia/Tomsk</option>
+                          <option value="Asia/Ulaanbaatar">Asia/Ulaanbaatar</option>
+                          <option value="Asia/Urumqi">Asia/Urumqi</option>
+                          <option value="Asia/Ust-Nera">Asia/Ust-Nera</option>
+                          <option value="Asia/Vientiane">Asia/Vientiane</option>
+                          <option value="Asia/Vladivostok">Asia/Vladivostok</option>
+                          <option value="Asia/Yakutsk">Asia/Yakutsk</option>
+                          <option value="Asia/Yangon">Asia/Yangon</option>
+                          <option value="Asia/Yekaterinburg">Asia/Yekaterinburg</option>
+                          <option value="Asia/Yerevan">Asia/Yerevan</option>
+                          <option value="Europe/Amsterdam">Europe/Amsterdam</option>
+                          <option value="Europe/Andorra">Europe/Andorra</option>
+                          <option value="Europe/Astrakhan">Europe/Astrakhan</option>
+                          <option value="Europe/Athens">Europe/Athens</option>
+                          <option value="Europe/Belgrade">Europe/Belgrade</option>
+                          <option value="Europe/Berlin">Europe/Berlin</option>
+                          <option value="Europe/Bratislava">Europe/Bratislava</option>
+                          <option value="Europe/Brussels">Europe/Brussels</option>
+                          <option value="Europe/Bucharest">Europe/Bucharest</option>
+                          <option value="Europe/Budapest">Europe/Budapest</option>
+                          <option value="Europe/Busingen">Europe/Busingen</option>
+                          <option value="Europe/Chisinau">Europe/Chisinau</option>
+                          <option value="Europe/Copenhagen">Europe/Copenhagen</option>
+                          <option value="Europe/Dublin">Europe/Dublin</option>
+                          <option value="Europe/Gibraltar">Europe/Gibraltar</option>
+                          <option value="Europe/Guernsey">Europe/Guernsey</option>
+                          <option value="Europe/Helsinki">Europe/Helsinki</option>
+                          <option value="Europe/Isle_of_Man">Europe/Isle_of_Man</option>
+                          <option value="Europe/Istanbul">Europe/Istanbul</option>
+                          <option value="Europe/Jersey">Europe/Jersey</option>
+                          <option value="Europe/Kaliningrad">Europe/Kaliningrad</option>
+                          <option value="Europe/Kiev">Europe/Kiev</option>
+                          <option value="Europe/Kirov">Europe/Kirov</option>
+                          <option value="Europe/Lisbon">Europe/Lisbon</option>
+                          <option value="Europe/Ljubljana">Europe/Ljubljana</option>
+                          <option value="Europe/London">Europe/London</option>
+                          <option value="Europe/Luxembourg">Europe/Luxembourg</option>
+                          <option value="Europe/Madrid">Europe/Madrid</option>
+                          <option value="Europe/Malta">Europe/Malta</option>
+                          <option value="Europe/Mariehamn">Europe/Mariehamn</option>
+                          <option value="Europe/Minsk">Europe/Minsk</option>
+                          <option value="Europe/Monaco">Europe/Monaco</option>
+                          <option value="Europe/Moscow">Europe/Moscow</option>
+                          <option value="Europe/Oslo">Europe/Oslo</option>
+                          <option value="Europe/Paris">Europe/Paris</option>
+                          <option value="Europe/Podgorica">Europe/Podgorica</option>
+                          <option value="Europe/Prague">Europe/Prague</option>
+                          <option value="Europe/Riga">Europe/Riga</option>
+                          <option value="Europe/Rome">Europe/Rome</option>
+                          <option value="Europe/Samara">Europe/Samara</option>
+                          <option value="Europe/San_Marino">Europe/San_Marino</option>
+                          <option value="Europe/Sarajevo">Europe/Sarajevo</option>
+                          <option value="Europe/Saratov">Europe/Saratov</option>
+                          <option value="Europe/Simferopol">Europe/Simferopol</option>
+                          <option value="Europe/Skopje">Europe/Skopje</option>
+                          <option value="Europe/Sofia">Europe/Sofia</option>
+                          <option value="Europe/Stockholm">Europe/Stockholm</option>
+                          <option value="Europe/Tallinn">Europe/Tallinn</option>
+                          <option value="Europe/Tirane">Europe/Tirane</option>
+                          <option value="Europe/Ulyanovsk">Europe/Ulyanovsk</option>
+                          <option value="Europe/Uzhgorod">Europe/Uzhgorod</option>
+                          <option value="Europe/Vaduz">Europe/Vaduz</option>
+                          <option value="Europe/Vatican">Europe/Vatican</option>
+                          <option value="Europe/Vienna">Europe/Vienna</option>
+                          <option value="Europe/Vilnius">Europe/Vilnius</option>
+                          <option value="Europe/Volgograd">Europe/Volgograd</option>
+                          <option value="Europe/Warsaw">Europe/Warsaw</option>
+                          <option value="Europe/Zagreb">Europe/Zagreb</option>
+                          <option value="Europe/Zaporozhye">Europe/Zaporozhye</option>
+                          <option value="Europe/Zurich">Europe/Zurich</option>
+                          <option value="Australia/Adelaide">Australia/Adelaide</option>
+                          <option value="Australia/Brisbane">Australia/Brisbane</option>
+                          <option value="Australia/Broken_Hill">Australia/Broken_Hill</option>
+                          <option value="Australia/Currie">Australia/Currie</option>
+                          <option value="Australia/Darwin">Australia/Darwin</option>
+                          <option value="Australia/Eucla">Australia/Eucla</option>
+                          <option value="Australia/Hobart">Australia/Hobart</option>
+                          <option value="Australia/Lindeman">Australia/Lindeman</option>
+                          <option value="Australia/Lord_Howe">Australia/Lord_Howe</option>
+                          <option value="Australia/Melbourne">Australia/Melbourne</option>
+                          <option value="Australia/Perth">Australia/Perth</option>
+                          <option value="Australia/Sydney">Australia/Sydney</option>
+                        </optgroup>
+                      </select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Current timezone: {Intl.DateTimeFormat().resolvedOptions().timeZone}
+                      </p>
+                    </div>
                   </div>
 
                   <div>
@@ -1146,7 +2039,7 @@ const InterviewDashboard = () => {
                             </div>
                             <div className="text-sm text-muted-foreground space-y-1">
                               <p><strong>Customer:</strong> {call.customer_number}</p>
-                              <p><strong>Scheduled:</strong> {formatScheduledTime(call.scheduled_time)}</p>
+                              <p><strong>Scheduled:</strong> {formatScheduledTime(call.scheduled_time, call.timezone)} ({call.timezone || 'Local'})</p>
                               <p><strong>Assistant:</strong> {call.assistant_name}</p>
                               <p><strong>Phone:</strong> {call.phone_number_display}</p>
                               {call.notes && <p><strong>Notes:</strong> {call.notes}</p>}
@@ -1177,6 +2070,224 @@ const InterviewDashboard = () => {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* Transcripts Tab */}
+        <TabsContent value="transcripts">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Call Transcripts
+              </CardTitle>
+              <CardDescription>
+                View and search through all interview call transcripts
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Search Bar */}
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Input
+                    type="text"
+                    placeholder="Search transcripts by customer number, status, content, or assistant..."
+                    value={transcriptSearch}
+                    onChange={(e) => setTranscriptSearch(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+                <Button onClick={loadAllCalls} disabled={transcriptLoading}>
+                  {transcriptLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Refresh
+                </Button>
+              </div>
+
+              {transcriptLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {getFilteredCalls().length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      {allCalls.length === 0 ? 'No call transcripts found' : 'No calls match your search criteria'}
+                    </div>
+                  ) : (
+                    <div className="grid gap-4">
+                      {getFilteredCalls().map((call) => (
+                        <Card key={call.id} className="border-l-4 border-l-blue-500">
+                          <CardHeader className="pb-3">
+                            <div className="flex justify-between items-start">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-semibold">
+                                    Call to {call.customer_number}
+                                  </h4>
+                                  <Badge className={
+                                    call.status === 'ended' ? 'bg-green-100 text-green-800' :
+                                    call.status === 'failed' ? 'bg-red-100 text-red-800' :
+                                    'bg-gray-100 text-gray-800'
+                                  }>
+                                    {call.status}
+                                  </Badge>
+                                  {call.outcome_status && (
+                                    <Badge variant="outline">
+                                      {call.outcome_status}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="text-sm text-gray-600 space-y-1">
+                                  <p><strong>Date:</strong> {new Date(call.created_at).toLocaleString()}</p>
+                                  <p><strong>Assistant:</strong> {call.assistant?.name || 'Unknown'}</p>
+                                  {call.duration_seconds && (
+                                    <p><strong>Duration:</strong> {Math.floor(call.duration_seconds / 60)}m {call.duration_seconds % 60}s</p>
+                                  )}
+                                  {call.cost && <p><strong>Cost:</strong> ${call.cost}</p>}
+                                </div>
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => loadCallTranscript(call.vapi_call_id)}
+                              >
+                                View Details
+                              </Button>
+                            </div>
+                          </CardHeader>
+                          
+                          {/* Show transcript if available */}
+                          {call.transcript_text && (
+                            <CardContent className="pt-0">
+                              <div className="space-y-2">
+                                <h5 className="font-medium text-gray-900">Transcript Preview:</h5>
+                                <div className="bg-gray-50 rounded-lg p-3 max-h-32 overflow-y-auto">
+                                  <pre className="whitespace-pre-wrap text-xs text-gray-700">
+                                    {call.transcript_text.length > 300 
+                                      ? `${call.transcript_text.substring(0, 300)}...` 
+                                      : call.transcript_text
+                                    }
+                                  </pre>
+                                </div>
+                                {call.transcript_text.length > 300 && (
+                                  <Button
+                                    variant="link"
+                                    size="sm"
+                                    onClick={() => loadCallTranscript(call.vapi_call_id)}
+                                    className="p-0 h-auto"
+                                  >
+                                    Read full transcript →
+                                  </Button>
+                                )}
+                              </div>
+                            </CardContent>
+                          )}
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Selected Call Details Modal */}
+              {selectedCall && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                  <div className="bg-white rounded-lg max-w-4xl w-full max-h-90vh overflow-hidden">
+                    <div className="p-6 border-b">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="text-lg font-semibold">
+                            Call Details: {selectedCall.customer?.number || selectedCall.phoneNumber}
+                          </h3>
+                          <p className="text-sm text-gray-600 mt-1">
+                            {selectedCall.createdAt && new Date(selectedCall.createdAt).toLocaleString()}
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSelectedCall(null)}
+                        >
+                          Close
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <div className="p-6 overflow-y-auto max-h-96">
+                      {/* Call Information */}
+                      <div className="space-y-4 mb-6">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-sm font-medium text-gray-500">Status</label>
+                            <p className="mt-1">{selectedCall.status}</p>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-gray-500">Duration</label>
+                            <p className="mt-1">{selectedCall.duration_formatted || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-gray-500">Cost</label>
+                            <p className="mt-1">${selectedCall.cost || '0.00'}</p>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-gray-500">Outcome</label>
+                            <p className="mt-1">{selectedCall.outcome?.status || 'N/A'}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Full Transcript */}
+                      {selectedCall.transcript_text && (
+                        <div className="space-y-2">
+                          <h4 className="font-semibold text-gray-900">Full Transcript</h4>
+                          <div className="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto">
+                            <pre className="whitespace-pre-wrap text-sm text-gray-700">
+                              {formatTranscriptText(selectedCall.transcript_text)}
+                            </pre>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Structured Transcript */}
+                      {selectedCall.transcript && Array.isArray(selectedCall.transcript) && (
+                        <div className="space-y-2 mt-4">
+                          <h4 className="font-semibold text-gray-900">Conversation Flow</h4>
+                          <div className="space-y-2">
+                            {selectedCall.transcript.map((item, index) => (
+                              <div key={index} className={`p-3 rounded-lg ${
+                                item.role === 'assistant' 
+                                  ? 'bg-blue-50 border-l-4 border-blue-500' 
+                                  : 'bg-green-50 border-l-4 border-green-500'
+                              }`}>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-xs font-semibold uppercase text-gray-600">
+                                    {item.role}
+                                  </span>
+                                  {item.timestamp && (
+                                    <span className="text-xs text-gray-500">
+                                      {item.timestamp}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-sm">{item.message}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {!selectedCall.transcript_text && !selectedCall.transcript && (
+                        <div className="text-center py-8 text-gray-500">
+                          No transcript available for this call
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

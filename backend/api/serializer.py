@@ -243,6 +243,7 @@ class ScheduledCallSerializer(serializers.ModelSerializer):
             "phone_number_display",
             "customer_number",
             "scheduled_time",
+            "timezone",
             "status",
             "call_name",
             "notes",
@@ -272,6 +273,7 @@ class CreateScheduledCallSerializer(serializers.Serializer):
     twilio_phone_number_id = serializers.CharField(max_length=255)
     vapi_assistant_id = serializers.CharField(max_length=255)
     scheduled_time = serializers.DateTimeField()
+    timezone = serializers.CharField(max_length=50, required=False, allow_blank=True)
     call_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
     notes = serializers.CharField(required=False, allow_blank=True)
 

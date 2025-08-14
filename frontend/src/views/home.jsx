@@ -51,7 +51,7 @@ const LoggedInView = ({ user }) => {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <Link to="/private">
+                        <Link to="/dashboard">
                             <Button className="w-full">
                                 <i className="bx bx-right-arrow-alt"></i>
                                 Go to Dashboard

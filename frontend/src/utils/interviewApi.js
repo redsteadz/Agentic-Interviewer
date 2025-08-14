@@ -86,6 +86,12 @@ export const deleteScheduledCall = (callId) => {
     const api = useAxios();
     return api.delete(`scheduled-call/${callId}/`);
 };
+
+// Website Analysis
+export const analyzeWebsite = (websiteUrl) => {
+    const api = useAxios();
+    return api.post('analyze-website/', { website_url: websiteUrl });
+};
 export const executeScheduledCalls = () => {
     const api = useAxios();
     return api.post('execute-scheduled-calls/');

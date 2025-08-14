@@ -227,6 +227,7 @@ class ScheduledCall(models.Model):
     
     # Scheduling information
     scheduled_time = models.DateTimeField()
+    timezone = models.CharField(max_length=50, blank=True, null=True)  # Store the timezone used for scheduling
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
     
     # Optional call metadata

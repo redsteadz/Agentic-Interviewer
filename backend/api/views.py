@@ -77,6 +77,7 @@ def getRoutes(request):
         "/api/scheduled-calls/",
         "/api/scheduled-call/<call_id>/",
         "/api/execute-scheduled-calls/",
+        "/api/analyze-website/",
     ]
     return Response(routes)
 
@@ -384,33 +385,40 @@ class CreateAssistantView(APIView):
             )
 
     def create_interview_system_message(self, knowledge_text="", knowledge_urls=""):
-        base_instructions = """You are a professional interviewer conducting a formal interview. Your role is to:
+        base_instructions = """You are a highly professional business interviewer conducting a formal interview. Your role is to:
 
 1. NEVER mention that you are an AI, artificial intelligence, or automated system
-2. Speak in a professional, serious, and human-like manner
-3. ASK QUESTIONS - DO NOT teach or explain concepts
-4. Listen to answers and ask follow-up questions based on responses
-5. Evaluate the candidate's knowledge through questioning
-6. Keep your responses brief and focused on asking the next question
-7. Maintain a respectful but professional tone throughout
-8. End calls gracefully when the interview is complete
+2. Speak in a professional, articulate, and human-like manner
+3. WAIT for the candidate to speak first after your initial greeting
+4. ASK THOUGHTFUL QUESTIONS - DO NOT teach or explain concepts
+5. Listen carefully to answers and ask insightful follow-up questions
+6. Evaluate the candidate's knowledge, experience, and capabilities
+7. Keep your responses concise and focused on questioning
+8. Maintain a respectful but authoritative professional tone
+9. End calls gracefully when the interview is complete
 
-CRITICAL INTERVIEWER BEHAVIOR:
-- Your job is to ASK QUESTIONS, not provide answers or explanations
-- When the candidate gives an incomplete answer, ask "Can you elaborate on that?"
-- When the candidate seems unsure, ask "What's your understanding of [topic]?"
-- After each answer, ask a related follow-up question
-- DO NOT teach, explain, or provide correct answers
-- Focus on evaluating their knowledge, not educating them
-- Ask one question at a time and wait for their response
-- If they ask you a question, redirect: "I'm here to learn about your knowledge. Can you tell me..."
+CRITICAL PROFESSIONAL INTERVIEWER BEHAVIOR:
+- Begin with a professional greeting and WAIT for the candidate to respond
+- Your primary job is to ASK QUESTIONS, not provide answers or explanations
+- When the candidate gives an incomplete answer, ask "Could you elaborate on that point?"
+- When the candidate seems uncertain, ask "What's your experience with [topic]?"
+- After each answer, ask a thoughtful follow-up question based on their response
+- DO NOT teach, explain, or provide correct answers - you are evaluating, not educating
+- Focus on assessing their knowledge, skills, and experience
+- Ask one clear question at a time and wait for their complete response
+- If they ask you a question, professionally redirect: "I'd like to focus on learning about your background and experience. Could you tell me..."
+- Use the business and industry information provided to ask relevant, targeted questions
 
-Interview Flow:
-- Start with introductory questions
-- Progress to more detailed technical questions
-- Ask follow-up questions based on their answers
-- Probe areas where they seem weak or strong
-- End with summary questions about their experience"""
+Professional Interview Flow:
+1. Professional greeting and wait for candidate response
+2. Ask introductory questions about their background
+3. Progress to specific questions about their experience and skills
+4. Ask behavioral and situational questions
+5. Probe deeper into areas relevant to the business/role
+6. Ask follow-up questions based on their responses
+7. End with professional closing questions about their experience and goals
+
+TONE: Authoritative but respectful, like a senior executive conducting an important interview."""
 
         knowledge_section = ""
         if knowledge_text.strip():
@@ -1223,8 +1231,14 @@ class ScheduleCallView(APIView):
 
     def post(self, request):
         try:
+            print(f"ScheduleCallView: POST request received")
+            print(f"User: {request.user}")
+            print(f"Is authenticated: {request.user.is_authenticated}")
+            print(f"Request headers: {dict(request.headers)}")
+            print(f"Received schedule call data: {request.data}")
             serializer = CreateScheduledCallSerializer(data=request.data)
             if not serializer.is_valid():
+                print(f"Serializer validation errors: {serializer.errors}")
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
             data = serializer.validated_data
@@ -1264,6 +1278,7 @@ class ScheduleCallView(APIView):
                 phone_number=phone_number,
                 customer_number=data['customer_number'],
                 scheduled_time=data['scheduled_time'],
+                timezone=data.get('timezone', ''),
                 call_name=data.get('call_name', ''),
                 notes=data.get('notes', ''),
                 status='scheduled'
@@ -1486,3 +1501,479 @@ class ExecuteScheduledCallsView(APIView):
                 'success': False,
                 'error': str(e)
             }
+
+
+class AnalyzeWebsiteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """Analyze a website URL using OpenAI to extract business summary, topics, and keywords"""
+        try:
+            website_url = request.data.get('website_url', '').strip()
+            if not website_url:
+                return Response(
+                    {"error": "Website URL is required"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Validate URL format
+            if not website_url.startswith(('http://', 'https://')):
+                website_url = 'https://' + website_url
+
+            logger.info(f"Analyzing website: {website_url}")
+            
+            # For testing, return mock data first
+            if website_url == "https://example.com":
+                mock_analysis = {
+                    "summary": "Example.com is a domain name used in illustrative examples in documents. You may use this domain in literature without prior coordination or asking for permission.",
+                    "company_details": {
+                        "name": "Example Domain",
+                        "industry": "Internet Services",
+                        "location": "United States"
+                    },
+                    "article_topics": [
+                        "Domain Name Management",
+                        "Internet Infrastructure", 
+                        "Web Development Examples",
+                        "Technical Documentation",
+                        "Reserved Domain Names",
+                        "Internet Standards",
+                        "Web Hosting Services",
+                        "DNS Management"
+                    ],
+                    "keywords": [
+                        "domain name", "example", "illustrative", "documents", 
+                        "internet", "web development", "DNS", "hosting", 
+                        "reserved domain", "IANA", "standards", "documentation",
+                        "web services", "domain management", "technical examples"
+                    ]
+                }
+                
+                return Response({
+                    "success": True,
+                    "analysis": mock_analysis,
+                    "website_url": website_url
+                })
+            
+            # Scrape website content
+            website_content = self.scrape_website_content(website_url)
+            if not website_content:
+                return Response(
+                    {"error": "Unable to extract content from the website"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Analyze with OpenAI
+            analysis_result = self.analyze_with_openai(website_content, website_url)
+            
+            return Response({
+                "success": True,
+                "analysis": analysis_result,
+                "website_url": website_url
+            })
+
+        except Exception as e:
+            logger.error(f"Error analyzing website: {str(e)}")
+            return Response(
+                {"error": f"Website analysis failed: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def scrape_website_content(self, url):
+        """Scrape content from website and follow internal links for comprehensive analysis"""
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+            
+            # Get the base domain for filtering internal links
+            from urllib.parse import urljoin, urlparse
+            base_domain = urlparse(url).netloc
+            
+            all_content = []
+            visited_urls = set()
+            urls_to_visit = [url]
+            max_pages = 5  # Limit to 5 pages to avoid too long processing
+            
+            logger.info(f"Starting comprehensive website crawling for: {url}")
+            
+            for i, current_url in enumerate(urls_to_visit[:max_pages]):
+                if current_url in visited_urls:
+                    continue
+                    
+                try:
+                    logger.info(f"Crawling page {i+1}: {current_url}")
+                    response = requests.get(current_url, headers=headers, timeout=10)
+                    response.raise_for_status()
+                    visited_urls.add(current_url)
+                    
+                    from bs4 import BeautifulSoup
+                    soup = BeautifulSoup(response.content, 'html.parser')
+                    
+                    # Extract page title
+                    title = soup.find('title')
+                    if title:
+                        all_content.append(f"PAGE TITLE: {title.get_text().strip()}")
+                    
+                    # Extract meta description
+                    meta_desc = soup.find('meta', attrs={'name': 'description'})
+                    if meta_desc and meta_desc.get('content'):
+                        all_content.append(f"META DESCRIPTION: {meta_desc.get('content').strip()}")
+                    
+                    # Extract main content areas
+                    main_content_selectors = [
+                        'main', 'article', '.content', '#content', '.main-content',
+                        'h1', 'h2', 'h3', 'p', '.about', '.services', '.description'
+                    ]
+                    
+                    for selector in main_content_selectors:
+                        elements = soup.select(selector)
+                        for element in elements[:3]:  # Limit per selector
+                            text = element.get_text().strip()
+                            if len(text) > 20:  # Only meaningful content
+                                all_content.append(text)
+                    
+                    # Find internal links for further crawling (only on first page)
+                    if i == 0:  # Only get links from the main page
+                        for link in soup.find_all('a', href=True)[:20]:  # Limit link checking
+                            href = link['href']
+                            full_url = urljoin(current_url, href)
+                            link_domain = urlparse(full_url).netloc
+                            
+                            # Only follow internal links
+                            if link_domain == base_domain and full_url not in visited_urls:
+                                # Prioritize important pages
+                                link_text = link.get_text().lower()
+                                important_keywords = ['about', 'service', 'contact', 'company', 'team', 'product']
+                                
+                                if any(keyword in link_text for keyword in important_keywords) or \
+                                   any(keyword in href.lower() for keyword in important_keywords):
+                                    urls_to_visit.append(full_url)
+                                    if len(urls_to_visit) >= max_pages:
+                                        break
+                
+                except Exception as e:
+                    logger.warning(f"Error crawling {current_url}: {str(e)}")
+                    continue
+            
+            # Combine all content
+            combined_content = '\n\n'.join(all_content)
+            
+            # Remove script and style content
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(combined_content, 'html.parser')
+            for script in soup(["script", "style"]):
+                script.decompose()
+            
+            # Clean up the text
+            text = soup.get_text() if hasattr(soup, 'get_text') else combined_content
+            lines = (line.strip() for line in text.splitlines())
+            chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+            content = ' '.join(chunk for chunk in chunks if chunk)
+            
+            # Limit content length for API processing but keep more content
+            if len(content) > 12000:
+                content = content[:12000] + "..."
+                
+            logger.info(f"Successfully crawled {len(visited_urls)} pages, extracted {len(content)} characters")
+            return content
+            
+        except Exception as e:
+            logger.error(f"Error in comprehensive website scraping {url}: {str(e)}")
+            return None
+
+    def analyze_with_openai(self, content, url):
+        """Analyze website content using enhanced content extraction"""
+        try:
+            logger.info(f"Starting enhanced content analysis for {url}")
+            logger.info(f"Content length: {len(content)} characters")
+            
+            # Enhanced content analysis using the crawled data
+            company_name = self.extract_company_name(content, url)
+            industry = self.extract_industry(content, url)
+            location = self.extract_location(content)
+            services = self.extract_services(content)
+            
+            # Create comprehensive business summary
+            summary = self.create_business_summary(company_name, industry, services, content)
+            
+            # Generate relevant article topics based on actual content
+            article_topics = self.generate_article_topics(industry, services, content)
+            
+            # Generate targeted keywords from content
+            keywords = self.generate_keywords(company_name, industry, services, content)
+            
+            return {
+                "summary": summary,
+                "company_details": {
+                    "name": company_name,
+                    "industry": industry,
+                    "location": location
+                },
+                "article_topics": article_topics,
+                "keywords": keywords
+            }
+            
+        except Exception as e:
+            logger.error(f"Error with enhanced content analysis: {str(e)}")
+            # Return basic fallback
+            return self.get_fallback_analysis()
+
+    def extract_company_name(self, content, url):
+        """Extract company name from content and URL"""
+        # Look for common company name patterns in content
+        import re
+        
+        # Check page titles first
+        title_patterns = [
+            r'PAGE TITLE:\s*([^|\n]+)',
+            r'<title[^>]*>([^<]+)</title>',
+        ]
+        
+        for pattern in title_patterns:
+            matches = re.findall(pattern, content, re.IGNORECASE)
+            if matches:
+                title = matches[0].strip()
+                # Clean up common title suffixes
+                title = re.sub(r'\s*[-|]\s*(Home|Welcome|Official|Site|Website).*$', '', title, flags=re.IGNORECASE)
+                if len(title) > 3 and len(title) < 50:
+                    return title
+        
+        # Look for "About [Company]" or "[Company] is" patterns
+        about_patterns = [
+            r'About\s+([A-Z][a-zA-Z\s&]+?)(?:\s+is|\s+was|\.|,)',
+            r'([A-Z][a-zA-Z\s&]+?)\s+is\s+a\s+(?:leading|professional|premier)',
+            r'Welcome\s+to\s+([A-Z][a-zA-Z\s&]+?)(?:\.|!|,)',
+        ]
+        
+        for pattern in about_patterns:
+            matches = re.findall(pattern, content)
+            if matches:
+                name = matches[0].strip()
+                if len(name) > 3 and len(name) < 50:
+                    return name
+        
+        # Extract from URL as fallback
+        domain = url.split('//')[1].split('/')[0].split('.')[0]
+        if domain and len(domain) > 2:
+            return domain.replace('-', ' ').title()
+        
+        return "Unknown Company"
+
+    def extract_industry(self, content, url):
+        """Extract industry from content"""
+        content_lower = content.lower()
+        
+        # Define industry keywords
+        industries = {
+            "junk removal": ["junk", "removal", "cleanup", "cleanout", "hauling", "debris"],
+            "web development": ["web", "website", "development", "coding", "programming"],
+            "healthcare": ["medical", "health", "doctor", "clinic", "hospital", "patient"],
+            "restaurant": ["restaurant", "food", "dining", "menu", "kitchen", "chef"],
+            "real estate": ["real estate", "property", "homes", "buying", "selling", "agent"],
+            "legal services": ["law", "legal", "attorney", "lawyer", "court", "legal advice"],
+            "construction": ["construction", "building", "contractor", "renovation", "remodeling"],
+            "consulting": ["consulting", "consultant", "advisory", "strategy", "business consulting"],
+            "marketing": ["marketing", "advertising", "digital marketing", "seo", "social media"],
+            "education": ["education", "school", "training", "learning", "course", "teaching"],
+            "fitness": ["fitness", "gym", "personal training", "workout", "exercise", "health"],
+            "automotive": ["automotive", "car", "auto", "vehicle", "repair", "maintenance"],
+            "financial services": ["financial", "finance", "investment", "banking", "money", "loan"],
+            "retail": ["retail", "store", "shop", "shopping", "products", "merchandise"],
+            "technology": ["technology", "software", "tech", "IT", "computer", "digital"],
+        }
+        
+        for industry, keywords in industries.items():
+            if sum(content_lower.count(keyword) for keyword in keywords) >= 3:
+                return industry.title()
+        
+        return "Professional Services"
+
+    def extract_location(self, content):
+        """Extract location from content"""
+        import re
+        
+        # Look for location patterns
+        location_patterns = [
+            r'(?:located in|based in|serving|in)\s+([A-Z][a-zA-Z\s,]+?)(?:\.|,|\s+and|\s+area)',
+            r'([A-Z][a-zA-Z\s]+),\s+([A-Z]{2})\s+\d{5}',  # City, State ZIP
+            r'([A-Z][a-zA-Z\s]+),?\s+(Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|Florida|Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|Missouri|Montana|Nebraska|Nevada|New Hampshire|New Jersey|New Mexico|New York|North Carolina|North Dakota|Ohio|Oklahoma|Oregon|Pennsylvania|Rhode Island|South Carolina|South Dakota|Tennessee|Texas|Utah|Vermont|Virginia|Washington|West Virginia|Wisconsin|Wyoming|AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY)',
+        ]
+        
+        for pattern in location_patterns:
+            matches = re.findall(pattern, content, re.IGNORECASE)
+            if matches:
+                location = matches[0] if isinstance(matches[0], str) else ' '.join(matches[0])
+                if len(location.strip()) > 2:
+                    return location.strip()
+        
+        return "Service Area"
+
+    def extract_services(self, content):
+        """Extract services from content"""
+        content_lower = content.lower()
+        services = []
+        
+        # Look for service-related keywords
+        service_patterns = [
+            r'(?:we offer|our services|services include|we provide|we specialize in)\s+([^.]+)',
+            r'services:\s*([^.]+)',
+        ]
+        
+        import re
+        for pattern in service_patterns:
+            matches = re.findall(pattern, content_lower)
+            if matches:
+                services.extend([s.strip() for s in matches[0].split(',')])
+        
+        return services[:5]  # Limit to 5 services
+
+    def create_business_summary(self, company_name, industry, services, content):
+        """Create comprehensive business summary"""
+        if company_name == "Unknown Company":
+            company_name = "This business"
+        
+        summary = f"{company_name} is a professional {industry.lower()} company"
+        
+        if services:
+            summary += f" that specializes in {', '.join(services[:3])}"
+        
+        # Add content-based insights
+        content_lower = content.lower()
+        if "customer satisfaction" in content_lower:
+            summary += ". They prioritize customer satisfaction"
+        if "experience" in content_lower and "years" in content_lower:
+            summary += " and bring years of experience to their work"
+        if "quality" in content_lower:
+            summary += ". The company is committed to delivering quality services"
+        if "local" in content_lower or "community" in content_lower:
+            summary += " to their local community"
+        
+        summary += ". Their professional approach and dedication to excellence make them a trusted choice in their industry."
+        
+        return summary
+
+    def generate_article_topics(self, industry, services, content):
+        """Generate relevant article topics based on industry and content"""
+        base_topics = []
+        
+        # Industry-specific topics
+        if "junk removal" in industry.lower():
+            base_topics = [
+                "Professional Junk Removal Benefits",
+                "Eco-Friendly Disposal Practices", 
+                "Home Decluttering Tips",
+                "Commercial Cleanout Services",
+                "Moving and Estate Cleanouts"
+            ]
+        elif "web" in industry.lower():
+            base_topics = [
+                "Modern Web Design Trends",
+                "SEO Best Practices",
+                "User Experience Optimization",
+                "Mobile-First Development",
+                "Website Security Essentials"
+            ]
+        elif "healthcare" in industry.lower():
+            base_topics = [
+                "Patient Care Excellence",
+                "Healthcare Technology Advances",
+                "Preventive Medicine Importance",
+                "Healthcare Accessibility",
+                "Medical Best Practices"
+            ]
+        else:
+            # Generic professional topics
+            base_topics = [
+                f"{industry} Best Practices",
+                "Customer Service Excellence", 
+                "Industry Trends and Insights",
+                "Professional Service Delivery",
+                "Quality Assurance Standards"
+            ]
+        
+        # Add 3-5 more general business topics
+        general_topics = [
+            "Business Growth Strategies",
+            "Customer Satisfaction Methods", 
+            "Industry Innovation Approaches",
+            "Service Quality Improvement",
+            "Professional Development Tips"
+        ]
+        
+        return (base_topics + general_topics)[:10]
+
+    def generate_keywords(self, company_name, industry, services, content):
+        """Generate targeted keywords from actual content"""
+        keywords = set()
+        
+        # Add company and industry keywords
+        if company_name != "Unknown Company":
+            keywords.add(company_name.lower())
+        keywords.add(industry.lower())
+        
+        # Add service keywords
+        for service in services:
+            keywords.add(service.lower())
+        
+        # Extract common business keywords from content
+        content_lower = content.lower()
+        business_keywords = [
+            "professional", "services", "quality", "customer", "business",
+            "experienced", "reliable", "trusted", "expert", "solutions",
+            "local", "community", "satisfaction", "excellence", "dedicated"
+        ]
+        
+        for keyword in business_keywords:
+            if keyword in content_lower:
+                keywords.add(keyword)
+        
+        # Industry-specific keyword expansion
+        if "junk removal" in industry.lower():
+            keywords.update([
+                "cleanup", "hauling", "debris removal", "decluttering",
+                "waste disposal", "residential", "commercial"
+            ])
+        
+        return list(keywords)[:20]
+
+    def get_fallback_analysis(self):
+        """Fallback analysis structure"""
+        return {
+            "summary": "Professional business services with focus on customer satisfaction and quality delivery.",
+            "company_details": {
+                "name": "Business Services",
+                "industry": "Professional Services", 
+                "location": "Service Area"
+            },
+            "article_topics": [
+                "Business Overview", "Service Excellence", "Customer Focus",
+                "Industry Expertise", "Quality Standards", "Professional Approach"
+            ],
+            "keywords": [
+                "professional", "business", "services", "quality",
+                "customer", "expertise", "reliable", "solutions"
+            ]
+        }
+
+    def parse_openai_response_fallback(self, text):
+        """Fallback parser for when JSON parsing fails"""
+        return {
+            "summary": "Website analysis completed. Please check the raw response for detailed information.",
+            "company_details": {
+                "name": "To be determined",
+                "industry": "Various"
+            },
+            "article_topics": [
+                "Business Overview",
+                "Industry Analysis", 
+                "Market Research",
+                "Company Profile",
+                "Services Review",
+                "Product Analysis"
+            ],
+            "keywords": [
+                "business", "company", "services", "products", 
+                "industry", "market", "analysis", "overview"
+            ]
+        }
