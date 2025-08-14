@@ -55,6 +55,8 @@ urlpatterns = [
     path("execute-scheduled-calls/", views.ExecuteScheduledCallsView.as_view(), name="execute_scheduled_calls"),
     # Website analysis endpoint
     path("analyze-website/", views.AnalyzeWebsiteView.as_view(), name="analyze_website"),
+    # ElevenLabs voices endpoint
+    path("elevenlabs-voices/", views.ElevenLabsVoicesView.as_view(), name="elevenlabs_voices"),
     # Routes listing
     path("", views.getRoutes, name="routes"),
 ]

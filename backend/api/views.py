@@ -78,6 +78,7 @@ def getRoutes(request):
         "/api/scheduled-call/<call_id>/",
         "/api/execute-scheduled-calls/",
         "/api/analyze-website/",
+        "/api/elevenlabs-voices/",
     ]
     return Response(routes)
 
@@ -385,10 +386,18 @@ class CreateAssistantView(APIView):
             )
 
     def create_interview_system_message(self, knowledge_text="", knowledge_urls=""):
-        base_instructions = """You are a highly professional business interviewer conducting a formal interview. Your role is to:
+        base_instructions = """You are a highly professional business interviewer conducting a formal VOICE CALL interview. This is a LIVE PHONE CONVERSATION, not text messaging. Your role is to:
 
+🎤 VOICE CALL CONTEXT:
+- This is a REAL-TIME VOICE CALL INTERVIEW - you are speaking to the candidate over the phone
+- You can HEAR their voice and they can HEAR yours - this is NOT text messaging or chat
+- Respond naturally as if you are having a live conversation over the phone
+- Use conversational speech patterns appropriate for voice communication
+- Acknowledge that you can hear them when they speak to you
+
+CORE INTERVIEW PRINCIPLES:
 1. NEVER mention that you are an AI, artificial intelligence, or automated system
-2. Speak in a professional, articulate, and human-like manner
+2. Speak in a professional, articulate, and human-like manner appropriate for phone conversations
 3. WAIT for the candidate to speak first after your initial greeting
 4. ASK THOUGHTFUL QUESTIONS - DO NOT teach or explain concepts
 5. Listen carefully to answers and ask insightful follow-up questions
@@ -397,7 +406,10 @@ class CreateAssistantView(APIView):
 8. Maintain a respectful but authoritative professional tone
 9. End calls gracefully when the interview is complete
 
-CRITICAL PROFESSIONAL INTERVIEWER BEHAVIOR:
+CRITICAL VOICE CALL INTERVIEWER BEHAVIOR:
+- This is a LIVE PHONE INTERVIEW - respond as if you are speaking to them in real-time
+- When they ask "Can you hear me?" respond "Yes, I can hear you clearly"
+- Use phone conversation etiquette and natural speech patterns
 - Begin with a professional greeting and WAIT for the candidate to respond
 - Your primary job is to ASK QUESTIONS, not provide answers or explanations
 - When the candidate gives an incomplete answer, ask "Could you elaborate on that point?"
@@ -409,8 +421,8 @@ CRITICAL PROFESSIONAL INTERVIEWER BEHAVIOR:
 - If they ask you a question, professionally redirect: "I'd like to focus on learning about your background and experience. Could you tell me..."
 - Use the business and industry information provided to ask relevant, targeted questions
 
-Professional Interview Flow:
-1. Professional greeting and wait for candidate response
+Professional Voice Interview Flow:
+1. Professional phone greeting and wait for candidate response
 2. Ask introductory questions about their background
 3. Progress to specific questions about their experience and skills
 4. Ask behavioral and situational questions
@@ -418,7 +430,7 @@ Professional Interview Flow:
 6. Ask follow-up questions based on their responses
 7. End with professional closing questions about their experience and goals
 
-TONE: Authoritative but respectful, like a senior executive conducting an important interview."""
+TONE: Authoritative but respectful, like a senior executive conducting an important phone interview. Remember: this is a LIVE VOICE CONVERSATION, not text messaging."""
 
         knowledge_section = ""
         if knowledge_text.strip():
@@ -1977,3 +1989,97 @@ class AnalyzeWebsiteView(APIView):
                 "industry", "market", "analysis", "overview"
             ]
         }
+
+
+class ElevenLabsVoicesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Fetch available ElevenLabs voice models"""
+        try:
+            # ElevenLabs popular voice models with their IDs
+            # These are the most commonly used voices from ElevenLabs
+            elevenlabs_voices = [
+                {
+                    "voice_id": "21m00Tcm4TlvDq8ikWAM",
+                    "name": "Rachel",
+                    "description": "Young American Female, Calm"
+                },
+                {
+                    "voice_id": "AZnzlk1XvdvUeBnXmlld", 
+                    "name": "Domi",
+                    "description": "Young American Female, Strong"
+                },
+                {
+                    "voice_id": "EXAVITQu4vr4xnSDxMaL",
+                    "name": "Bella",
+                    "description": "Young American Female, Sweet"
+                },
+                {
+                    "voice_id": "ErXwobaYiN019PkySvjV",
+                    "name": "Antoni",
+                    "description": "Young American Male, Well-rounded"
+                },
+                {
+                    "voice_id": "VR6AewLTigWG4xSOukaG",
+                    "name": "Arnold",
+                    "description": "American Male, Crisp"
+                },
+                {
+                    "voice_id": "pNInz6obpgDQGcFmaJgB",
+                    "name": "Adam",
+                    "description": "American Male, Deep"
+                },
+                {
+                    "voice_id": "yoZ06aMxZJJ28mfd3POQ",
+                    "name": "Sam",
+                    "description": "American Male, Raspy"
+                },
+                {
+                    "voice_id": "TxGEqnHWrfWFTfGW9XjX",
+                    "name": "Josh",
+                    "description": "American Male, Deep"
+                },
+                {
+                    "voice_id": "jsCqWAovK2LkecY7zXl4",
+                    "name": "Serena",
+                    "description": "American Female, Pleasant"
+                },
+                {
+                    "voice_id": "jBpfuIE2acCO8z3wKNLl",
+                    "name": "Gigi",
+                    "description": "American Female, Childlish"
+                },
+                {
+                    "voice_id": "XB0fDUnXU5powFXDhCwa",
+                    "name": "Charlotte",
+                    "description": "English Female, Seductive"
+                },
+                {
+                    "voice_id": "IKne3meq5aSn9XLyUdCD",
+                    "name": "Matilda",
+                    "description": "American Female, Warm"
+                },
+                {
+                    "voice_id": "flq6f7yk4E4fJM5XTYuZ",
+                    "name": "Michael",
+                    "description": "American Male, Old"
+                },
+                {
+                    "voice_id": "piTKgcLEGmPE4e6mEKli",
+                    "name": "Nicole",
+                    "description": "American Female, Whisper"
+                }
+            ]
+            
+            return Response({
+                "success": True,
+                "voices": elevenlabs_voices
+            })
+            
+        except Exception as e:
+            logger.error(f"Error fetching ElevenLabs voices: {str(e)}")
+            return Response(
+                {"error": "Failed to fetch ElevenLabs voices"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
