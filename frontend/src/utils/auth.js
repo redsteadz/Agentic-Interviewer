@@ -46,16 +46,28 @@ export const logout = () => {
 
 export const setUser = async () => {
     // ON PAGE LOAD
-    const accessToken = Cookies.get('access_token');
-    const refreshToken = Cookies.get('refresh_token');
-    if (!accessToken || !refreshToken) {
-        return;
-    }
-    if (isAccessTokenExpired(accessToken)) {
-        const response = await getRefreshToken(refreshToken);
-        setAuthUser(response.access, response.refresh);
-    } else {
-        setAuthUser(accessToken, refreshToken);
+    try {
+        const accessToken = Cookies.get('access_token');
+        const refreshToken = Cookies.get('refresh_token');
+        
+        if (!accessToken || !refreshToken) {
+            useAuthStore.getState().setLoading(false);
+            return;
+        }
+        
+        if (isAccessTokenExpired(accessToken)) {
+            const response = await getRefreshToken(refreshToken);
+            setAuthUser(response.access, response.refresh);
+        } else {
+            setAuthUser(accessToken, refreshToken);
+        }
+    } catch (error) {
+        console.error('Authentication error:', error);
+        // Clear invalid tokens
+        Cookies.remove('access_token');
+        Cookies.remove('refresh_token');
+        useAuthStore.getState().setUser(null);
+        useAuthStore.getState().setLoading(false);
     }
 };
 
@@ -80,6 +92,9 @@ export const setAuthUser = (access_token, refresh_token) => {
 
 export const getRefreshToken = async () => {
     const refresh_token = Cookies.get('refresh_token');
+    if (!refresh_token) {
+        throw new Error('No refresh token available');
+    }
     const response = await axios.post('token/refresh/', {
         refresh: refresh_token,
     });

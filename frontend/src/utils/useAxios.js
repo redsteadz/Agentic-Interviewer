@@ -13,15 +13,39 @@ const useAxios = () => {
     });
 
     axiosInstance.interceptors.request.use(async (req) => {
-        if (!isAccessTokenExpired(accessToken)) return req;
+        try {
+            if (!isAccessTokenExpired(accessToken)) return req;
 
-        const response = await getRefreshToken(refreshToken);
+            const response = await getRefreshToken(refreshToken);
 
-        setAuthUser(response.access, response.refresh);
+            setAuthUser(response.access, response.refresh);
 
-        req.headers.Authorization = `Bearer ${response.data.access}`;
-        return req;
+            req.headers.Authorization = `Bearer ${response.access}`;
+            return req;
+        } catch (error) {
+            console.error('Token refresh failed:', error);
+            // Clear tokens and redirect to login
+            Cookies.remove('access_token');
+            Cookies.remove('refresh_token');
+            window.location.href = '/login';
+            return req;
+        }
     });
+
+    // Response interceptor to handle errors
+    axiosInstance.interceptors.response.use(
+        (response) => response,
+        (error) => {
+            console.error('API Error:', error);
+            if (error.response?.status === 401) {
+                // Unauthorized - clear tokens and redirect
+                Cookies.remove('access_token');
+                Cookies.remove('refresh_token');
+                window.location.href = '/login';
+            }
+            return Promise.reject(error);
+        }
+    );
 
     return axiosInstance;
 };

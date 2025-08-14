@@ -30,11 +30,15 @@ import {
 import { getCampaigns } from '../utils/campaign';
 
 const InterviewDashboard = () => {
+  console.log('InterviewDashboard component rendering...');
+  
   const { campaignId } = useParams(); // Get campaign ID from URL
+  console.log('Campaign ID from params:', campaignId);
   
   // Campaign State
   const [currentCampaign, setCurrentCampaign] = useState(null);
   const [campaigns, setCampaigns] = useState([]);
+  console.log('State initialized successfully');
   
   // API Configuration State
   const [apiConfig, setApiConfig] = useState({
@@ -459,9 +463,24 @@ const InterviewDashboard = () => {
   const handleMakeCall = async (e) => {
     e.preventDefault();
     setCallLoading(true);
+    setCallMessage('');
 
     try {
+      console.log('Making call with form data:', callForm);
+      
+      // Validate required fields
+      if (!callForm.customer_number) {
+        setCallMessage('Please enter a customer phone number');
+        return;
+      }
+      if (!callForm.vapi_assistant_id) {
+        setCallMessage('Please select an assistant first');
+        return;
+      }
+
       const response = await makeCall(callForm);
+      console.log('Call response:', response);
+      
       if (response.data.success) {
         setCurrentCall(response.data.call_data);
         await refreshCallDetails();
@@ -469,10 +488,12 @@ const InterviewDashboard = () => {
         await loadAllCalls();
         setCallMessage('Call initiated successfully! Check the Transcripts tab for updates.');
       } else {
-        alert(`Error: ${response.data.error}`);
+        setCallMessage(`Error: ${response.data.error || 'Unknown error occurred'}`);
       }
     } catch (error) {
-      alert(`Error: ${error.response?.data?.error || error.message}`);
+      console.error('Call error:', error);
+      console.error('Error response:', error.response?.data);
+      setCallMessage(`Error: ${error.response?.data?.error || error.response?.data?.detail || error.message || 'Failed to make call'}`);
     } finally {
       setCallLoading(false);
     }
@@ -794,8 +815,11 @@ const InterviewDashboard = () => {
     });
   };
 
-  return (
-    <div className="container mx-auto p-6 space-y-6">
+  console.log('About to render InterviewDashboard JSX');
+  
+  try {
+    return (
+      <div className="container mx-auto p-6 space-y-6">
       <div className="text-center space-y-2">
         <h1 className="text-3xl font-bold flex items-center justify-center gap-2">
           <Phone className="h-8 w-8" />
@@ -1604,7 +1628,7 @@ const InterviewDashboard = () => {
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
                           <label className="font-medium text-gray-600">Phone Number:</label>
-                          <p className="mt-1">{currentCall?.customer || callDetails?.customer || callDetails?.customer_number || callForm?.customer_number || 'N/A'}</p>
+                          <p className="mt-1">{currentCall?.customer_number || currentCall?.customer?.number || callDetails?.customer_number || callDetails?.customer?.number || callForm?.customer_number || 'N/A'}</p>
                         </div>
                         <div>
                           <label className="font-medium text-gray-600">Status:</label>
@@ -2356,7 +2380,7 @@ const InterviewDashboard = () => {
                       <div className="flex justify-between items-start">
                         <div>
                           <h3 className="text-lg font-semibold">
-                            Call Details: {selectedCall.customer?.number || selectedCall.phoneNumber}
+                            Call Details: {selectedCall.customer_number || selectedCall.customer?.number || selectedCall.phoneNumber}
                           </h3>
                           <p className="text-sm text-gray-600 mt-1">
                             {selectedCall.createdAt && new Date(selectedCall.createdAt).toLocaleString()}
@@ -2449,7 +2473,25 @@ const InterviewDashboard = () => {
         </TabsContent>
       </Tabs>
     </div>
-  );
+    );
+  } catch (error) {
+    console.error('Error rendering InterviewDashboard:', error);
+    return (
+      <div className="p-6">
+        <h1 className="text-2xl font-bold text-red-600">Error Loading Interview Dashboard</h1>
+        <p className="text-gray-600 mt-2">An error occurred while loading the interview dashboard.</p>
+        <pre className="mt-4 p-4 bg-gray-100 rounded text-sm overflow-auto">
+          {error.toString()}
+        </pre>
+        <button 
+          onClick={() => window.location.reload()} 
+          className="mt-4 bg-blue-600 text-white px-4 py-2 rounded"
+        >
+          Refresh Page
+        </button>
+      </div>
+    );
+  }
 };
 
 export default InterviewDashboard;
