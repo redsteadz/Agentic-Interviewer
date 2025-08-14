@@ -200,10 +200,10 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {campaigns.reduce((total, c) => total + c.callCount, 0)}
+              {calls.length || 0}
             </div>
             <p className="text-xs text-muted-foreground">
-              +20.1% from last month
+              Total calls made across all campaigns
             </p>
           </CardContent>
         </Card>
@@ -239,7 +239,9 @@ export default function Dashboard() {
                   <CardTitle>{c.name}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-muted-foreground">Calls Made: {c.callCount}</p>
+                  <p className="text-muted-foreground">
+                    Calls Made: {calls.filter(call => call.campaign_id === c.id || (call.campaign && call.campaign.id === c.id)).length}
+                  </p>
                 </CardContent>
               </Card>
             ))}

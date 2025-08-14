@@ -93,6 +93,7 @@ const InterviewDashboard = () => {
   const [callLoading, setCallLoading] = useState(false);
   const [currentCall, setCurrentCall] = useState(null);
   const [callDetails, setCallDetails] = useState(null);
+  const [callMessage, setCallMessage] = useState('');
 
   // Transcript State
   const [allCalls, setAllCalls] = useState([]);
@@ -1371,10 +1372,14 @@ const InterviewDashboard = () => {
                           </div>
                           <Button
                             size="sm"
-                            onClick={() => setCallForm(prev => ({
-                              ...prev,
-                              vapi_assistant_id: assistant.vapi_assistant_id
-                            }))}
+                            onClick={() => {
+                              setCallForm(prev => ({
+                                ...prev,
+                                vapi_assistant_id: assistant.vapi_assistant_id
+                              }));
+                              setCallMessage(`✅ Assistant "${assistant.name}" is now selected for calls!`);
+                              setTimeout(() => setCallMessage(''), 3000);
+                            }}
                           >
                             Use for Calls
                           </Button>
@@ -1437,10 +1442,14 @@ const InterviewDashboard = () => {
                         <Button
                           size="sm"
                           className="mt-2"
-                          onClick={() => setCallForm(prev => ({
-                            ...prev,
-                            twilio_phone_number_id: number.id
-                          }))}
+                          onClick={() => {
+                            setCallForm(prev => ({
+                              ...prev,
+                              twilio_phone_number_id: number.id
+                            }));
+                            setCallMessage(`✅ Phone number "${number.number}" is now selected for calls!`);
+                            setTimeout(() => setCallMessage(''), 3000);
+                          }}
                         >
                           Use for Calls
                         </Button>
@@ -1552,6 +1561,14 @@ const InterviewDashboard = () => {
                     🚀 Begin Professional Interview
                   </Button>
                 </form>
+
+                {/* Call Form Messages */}
+                {callMessage && (
+                  <Alert className="mt-4">
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertDescription>{callMessage}</AlertDescription>
+                  </Alert>
+                )}
               </CardContent>
             </Card>
 
@@ -1580,21 +1597,83 @@ const InterviewDashboard = () => {
                     )}
                   </div>
 
-                  {callDetails && (
-                    <div className="space-y-2 text-sm">
-                      <p><strong>Call ID:</strong> {callDetails.id}</p>
-                      <p><strong>Customer:</strong> {callDetails.customer}</p>
-                      {callDetails.cost && (
-                        <p><strong>Cost:</strong> ${callDetails.cost.toFixed(4)}</p>
-                      )}
-                      {callDetails.duration_formatted && (
-                        <p><strong>Duration:</strong> {callDetails.duration_formatted}</p>
-                      )}
-                      {callDetails.outcome && (
-                        <p><strong>Description:</strong> {callDetails.outcome.description}</p>
-                      )}
+                  <div className="space-y-4">
+                    {/* Call Information Section */}
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h4 className="font-semibold text-gray-900 mb-3">Call Information</h4>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <label className="font-medium text-gray-600">Phone Number:</label>
+                          <p className="mt-1">{currentCall?.customer || callDetails?.customer || callDetails?.customer_number || callForm?.customer_number || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <label className="font-medium text-gray-600">Status:</label>
+                          <p className="mt-1">
+                            <Badge className={getStatusColor(currentCall?.status || callDetails?.status || 'unknown')}>
+                              {(currentCall?.status || callDetails?.status || 'Unknown').toUpperCase()}
+                            </Badge>
+                          </p>
+                        </div>
+                        <div>
+                          <label className="font-medium text-gray-600">Assistant:</label>
+                          <p className="mt-1">{callDetails?.assistant?.name || currentCall?.assistant?.name || (callForm?.vapi_assistant_id && assistants.find(a => a.vapi_assistant_id === callForm.vapi_assistant_id)?.name) || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <label className="font-medium text-gray-600">Campaign:</label>
+                          <p className="mt-1">{currentCampaign?.name || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <label className="font-medium text-gray-600">Duration:</label>
+                          <p className="mt-1">{callDetails?.duration_formatted || (callDetails?.duration_seconds ? `${Math.floor(callDetails.duration_seconds / 60)}m ${callDetails.duration_seconds % 60}s` : 'N/A')}</p>
+                        </div>
+                        <div>
+                          <label className="font-medium text-gray-600">Cost:</label>
+                          <p className="mt-1">${callDetails?.cost ? callDetails.cost.toFixed(4) : '0.00'}</p>
+                        </div>
+                      </div>
                     </div>
-                  )}
+
+                    {/* Timeline Section */}
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h4 className="font-semibold text-gray-900 mb-3">Timeline</h4>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <label className="font-medium text-gray-600">Created:</label>
+                          <p className="mt-1">{callDetails?.created_at ? new Date(callDetails.created_at).toLocaleString() : currentCall?.created_at ? new Date(currentCall.created_at).toLocaleString() : 'N/A'}</p>
+                        </div>
+                        <div>
+                          <label className="font-medium text-gray-600">Started:</label>
+                          <p className="mt-1">{callDetails?.started_at ? new Date(callDetails.started_at).toLocaleString() : 'N/A'}</p>
+                        </div>
+                        <div>
+                          <label className="font-medium text-gray-600">Ended:</label>
+                          <p className="mt-1">{callDetails?.ended_at ? new Date(callDetails.ended_at).toLocaleString() : 'N/A'}</p>
+                        </div>
+                        <div>
+                          <label className="font-medium text-gray-600">End Reason:</label>
+                          <p className="mt-1">{callDetails?.outcome?.description || callDetails?.end_reason || 'N/A'}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Additional Details */}
+                    {callDetails && (
+                      <div className="bg-blue-50 p-4 rounded-lg">
+                        <h4 className="font-semibold text-gray-900 mb-3">Additional Details</h4>
+                        <div className="space-y-2 text-sm">
+                          <p><strong>Call ID:</strong> {callDetails.id || currentCall?.id || 'N/A'}</p>
+                          <p><strong>VAPI Call ID:</strong> {callDetails.vapi_call_id || currentCall?.vapi_call_id || 'N/A'}</p>
+                          {callDetails.outcome && (
+                            <p><strong>Outcome Status:</strong> 
+                              <Badge className={getOutcomeColor(callDetails.outcome.status)} style={{marginLeft: '8px'}}>
+                                {callDetails.outcome.status.toUpperCase()}
+                              </Badge>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   {callDetails?.transcript_text && (
                     <div className="space-y-2">

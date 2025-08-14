@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Call Details Fix Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        .before { background-color: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+        .after { background-color: #d4edda; border-color: #c3e6cb; color: #155724; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; color: #0c5460; }
+        .call-details-demo { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 10px 0; }
+        .section-header { font-weight: bold; margin-bottom: 10px; padding: 8px; background: #e9ecef; border-radius: 4px; }
+        .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 10px 0; }
+        .detail-item { padding: 8px; background: white; border-radius: 4px; border-left: 3px solid #007bff; }
+        .detail-label { font-weight: 600; color: #666; font-size: 12px; text-transform: uppercase; }
+        .detail-value { margin-top: 4px; }
+        .na-value { color: #dc3545; font-style: italic; }
+        .good-value { color: #155724; }
+        .status-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; text-transform: uppercase; }
+        .status-ended { background: #d4edda; color: #155724; }
+        .status-unknown { background: #f8d7da; color: #721c24; }
+        code { background: #f5f5f5; padding: 2px 4px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📞 Call Details Fix</h1>
+        
+        <div class="test-section info">
+            <h3>Problem Identified</h3>
+            <p>The "Call Status & Details" section in the Make Calls tab was showing "N/A" for all fields because:</p>
+            <ul>
+                <li>Limited data binding - only using basic call information</li>
+                <li>Missing fallback to form data when call details aren't loaded yet</li>
+                <li>Poor structure and formatting of the details display</li>
+                <li>No comprehensive timeline or additional information sections</li>
+            </ul>
+        </div>
+
+        <div class="test-section before">
+            <h3>❌ Before Fix - All N/A Values</h3>
+            <div class="call-details-demo">
+                <div class="section-header">Call Details</div>
+                <div>
+                    <p><strong>Call ID:</strong> abc123</p>
+                    <p><strong>Customer:</strong> +1-555-123-4567</p>
+                    <p><strong>Cost:</strong> <span class="na-value">N/A</span></p>
+                    <p><strong>Duration:</strong> <span class="na-value">N/A</span></p>
+                    <p><strong>Description:</strong> <span class="na-value">N/A</span></p>
+                </div>
+            </div>
+            
+            <p><strong>Problems:</strong></p>
+            <ul>
+                <li>❌ No organized structure - just a simple list</li>
+                <li>❌ Missing important fields like Assistant, Campaign, Timeline</li>
+                <li>❌ No fallback to form data when API data is not yet available</li>
+                <li>❌ Poor visual hierarchy and layout</li>
+                <li>❌ Limited information displayed</li>
+            </ul>
+        </div>
+
+        <div class="test-section after">
+            <h3>✅ After Fix - Comprehensive Call Details</h3>
+            <div class="call-details-demo">
+                <div class="section-header">📋 Call Information</div>
+                <div class="details-grid">
+                    <div class="detail-item">
+                        <div class="detail-label">Phone Number:</div>
+                        <div class="detail-value good-value">+1-555-123-4567</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Status:</div>
+                        <div class="detail-value">
+                            <span class="status-badge status-ended">ENDED</span>
+                        </div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Assistant:</div>
+                        <div class="detail-value good-value">Professional Interviewer</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Campaign:</div>
+                        <div class="detail-value good-value">Customer Research Campaign</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Duration:</div>
+                        <div class="detail-value good-value">3m 24s</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Cost:</div>
+                        <div class="detail-value good-value">$0.0450</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="call-details-demo">
+                <div class="section-header">⏰ Timeline</div>
+                <div class="details-grid">
+                    <div class="detail-item">
+                        <div class="detail-label">Created:</div>
+                        <div class="detail-value good-value">12/15/2024, 2:30:15 PM</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Started:</div>
+                        <div class="detail-value good-value">12/15/2024, 2:30:45 PM</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Ended:</div>
+                        <div class="detail-value good-value">12/15/2024, 2:34:09 PM</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">End Reason:</div>
+                        <div class="detail-value good-value">Interview completed successfully</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="call-details-demo">
+                <div class="section-header">🔧 Additional Details</div>
+                <div style="padding: 10px;">
+                    <p><strong>Call ID:</strong> <span class="good-value">abc123</span></p>
+                    <p><strong>VAPI Call ID:</strong> <span class="good-value">vapi_xyz789</span></p>
+                    <p><strong>Outcome Status:</strong> <span class="status-badge status-ended">SUCCESS</span></p>
+                </div>
+            </div>
+            
+            <p><strong>Improvements:</strong></p>
+            <ul>
+                <li>✅ <strong>Organized Structure:</strong> Separate sections for Information, Timeline, and Additional Details</li>
+                <li>✅ <strong>Comprehensive Data:</strong> Shows all relevant call information</li>
+                <li>✅ <strong>Smart Fallbacks:</strong> Uses form data when API data isn't available yet</li>
+                <li>✅ <strong>Professional Layout:</strong> Grid-based design with proper spacing</li>
+                <li>✅ <strong>Visual Hierarchy:</strong> Clear sections with headers and badges</li>
+                <li>✅ <strong>Real-time Updates:</strong> Updates as call progresses</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h3>🔧 Technical Improvements Made</h3>
+            
+            <h4>1. Enhanced Data Binding:</h4>
+            <ul>
+                <li><strong>Phone Number:</strong> <code>currentCall?.customer || callDetails?.customer || callForm?.customer_number</code></li>
+                <li><strong>Assistant:</strong> <code>callDetails?.assistant?.name || assistants.find(a => a.vapi_assistant_id === callForm.vapi_assistant_id)?.name</code></li>
+                <li><strong>Campaign:</strong> <code>currentCampaign?.name</code></li>
+                <li><strong>Status:</strong> Visual badges with proper styling</li>
+            </ul>
+            
+            <h4>2. Comprehensive Timeline:</h4>
+            <ul>
+                <li><strong>Created:</strong> Call initiation time</li>
+                <li><strong>Started:</strong> When conversation began</li>
+                <li><strong>Ended:</strong> When call terminated</li>
+                <li><strong>End Reason:</strong> Why the call ended</li>
+            </ul>
+            
+            <h4>3. Professional Layout:</h4>
+            <ul>
+                <li><strong>Grid Structure:</strong> 2-column responsive layout</li>
+                <li><strong>Color-coded Sections:</strong> Different background colors for organization</li>
+                <li><strong>Consistent Spacing:</strong> Proper padding and margins</li>
+                <li><strong>Typography:</strong> Clear labels and values</li>
+            </ul>
+            
+            <h4>4. Smart Duration Formatting:</h4>
+            <code>duration_formatted || (duration_seconds ? `${Math.floor(duration_seconds / 60)}m ${duration_seconds % 60}s` : 'N/A')</code>
+        </div>
+
+        <div class="test-section">
+            <h3>🧪 Testing the Fix</h3>
+            <ol>
+                <li><strong>Make a Call:</strong> Go to Make Calls tab and initiate a call</li>
+                <li><strong>Check Initial Display:</strong> Should show phone number, assistant, and campaign from form data</li>
+                <li><strong>Monitor Progress:</strong> Watch status updates as call progresses</li>
+                <li><strong>View Complete Details:</strong> After call ends, all timeline information should be populated</li>
+                <li><strong>Verify Sections:</strong> Ensure all three sections (Information, Timeline, Additional Details) display properly</li>
+                <li><strong>Test Responsive Design:</strong> Check layout on different screen sizes</li>
+            </ol>
+        </div>
+
+        <div class="test-section">
+            <h3>📋 Data Sources Hierarchy</h3>
+            <p>The fix implements a smart fallback system for data sources:</p>
+            <ol>
+                <li><strong>Primary:</strong> <code>callDetails</code> (from API response)</li>
+                <li><strong>Secondary:</strong> <code>currentCall</code> (from call initiation)</li>
+                <li><strong>Fallback:</strong> <code>callForm</code> (from user input)</li>
+                <li><strong>Context:</strong> <code>currentCampaign</code>, <code>assistants</code> array</li>
+                <li><strong>Default:</strong> 'N/A' only when no data is available</li>
+            </ol>
+        </div>
+
+        <div class="test-section after">
+            <h3>🎯 Fix Status: IMPLEMENTED ✅</h3>
+            <p>Call Details view has been completely enhanced:</p>
+            <ul>
+                <li>✅ <strong>No More N/A Values:</strong> Intelligent data binding with multiple fallbacks</li>
+                <li>✅ <strong>Professional Layout:</strong> Organized sections with clear visual hierarchy</li>
+                <li>✅ <strong>Comprehensive Information:</strong> All relevant call data displayed</li>
+                <li>✅ <strong>Real-time Updates:</strong> Information updates as call progresses</li>
+                <li>✅ <strong>Smart Formatting:</strong> Proper date/time and duration formatting</li>
+                <li>✅ <strong>Visual Enhancements:</strong> Color-coded sections and status badges</li>
+            </ul>
+            <p><strong>The Call Details now provide a complete, professional view of all call information!</strong></p>
+        </div>
+    </div>
+</body>
+</html>

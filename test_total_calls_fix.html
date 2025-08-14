@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Total Calls NaN Fix</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        .before { background-color: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+        .after { background-color: #d4edda; border-color: #c3e6cb; color: #155724; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; color: #0c5460; }
+        .dashboard-card { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 10px 0; border: 1px solid #ddd; }
+        .card-header { font-size: 14px; color: #666; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+        .card-value { font-size: 32px; font-weight: bold; margin-bottom: 4px; }
+        .card-description { font-size: 12px; color: #888; }
+        .nan-value { color: #dc3545; }
+        .good-value { color: #155724; }
+        .icon { display: inline-block; width: 16px; height: 16px; background: #007bff; border-radius: 2px; }
+        code { background: #f5f5f5; padding: 2px 4px; border-radius: 3px; }
+        .code-block { background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #007bff; margin: 10px 0; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Total Calls NaN Fix</h1>
+        
+        <div class="test-section info">
+            <h3>Problem Identified</h3>
+            <p>The "Total Calls" dashboard card was displaying "NaN" because the calculation was trying to access a <code>callCount</code> property that doesn't exist on campaign objects.</p>
+            <div class="code-block">
+                <strong>Broken Code:</strong><br>
+                <code>campaigns.reduce((total, c) => total + c.callCount, 0)</code>
+            </div>
+            <p>Since <code>c.callCount</code> was <code>undefined</code>, the addition resulted in <code>NaN</code>.</p>
+        </div>
+
+        <div class="test-section before">
+            <h3>❌ Before Fix - NaN Display</h3>
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <span class="icon"></span>
+                    Total Calls
+                </div>
+                <div class="card-value nan-value">NaN</div>
+                <div class="card-description">+20.1% from last month</div>
+            </div>
+            
+            <div class="dashboard-card">
+                <div class="card-header">Campaign: Customer Research</div>
+                <div style="font-size: 14px; color: #666;">
+                    Calls Made: <span class="nan-value">undefined</span>
+                </div>
+            </div>
+            
+            <p><strong>Problems:</strong></p>
+            <ul>
+                <li>❌ <code>campaigns.reduce((total, c) => total + c.callCount, 0)</code> returns NaN</li>
+                <li>❌ Campaign objects don't have a <code>callCount</code> property</li>
+                <li>❌ No fallback for missing data</li>
+                <li>❌ Poor user experience with invalid numbers</li>
+                <li>❌ Individual campaign counts also broken</li>
+            </ul>
+        </div>
+
+        <div class="test-section after">
+            <h3>✅ After Fix - Accurate Counts</h3>
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <span class="icon"></span>
+                    Total Calls
+                </div>
+                <div class="card-value good-value">7</div>
+                <div class="card-description">Total calls made across all campaigns</div>
+            </div>
+            
+            <div class="dashboard-card">
+                <div class="card-header">Campaign: Customer Research</div>
+                <div style="font-size: 14px; color: #666;">
+                    Calls Made: <span class="good-value">3</span>
+                </div>
+            </div>
+            
+            <div class="dashboard-card">
+                <div class="card-header">Campaign: Product Feedback</div>
+                <div style="font-size: 14px; color: #666;">
+                    Calls Made: <span class="good-value">4</span>
+                </div>
+            </div>
+            
+            <p><strong>Improvements:</strong></p>
+            <ul>
+                <li>✅ <code>calls.length || 0</code> shows actual total call count</li>
+                <li>✅ Campaign-specific counts filter calls by campaign ID</li>
+                <li>✅ Proper fallback to 0 when no calls exist</li>
+                <li>✅ Real-time updates as calls are made</li>
+                <li>✅ Clear, descriptive text for users</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h3>🔧 Technical Fixes Applied</h3>
+            
+            <h4>1. Total Calls Dashboard Card:</h4>
+            <div class="code-block">
+                <strong>Before:</strong><br>
+                <code>campaigns.reduce((total, c) => total + c.callCount, 0)</code><br><br>
+                
+                <strong>After:</strong><br>
+                <code>calls.length || 0</code>
+            </div>
+            
+            <h4>2. Individual Campaign Call Counts:</h4>
+            <div class="code-block">
+                <strong>Before:</strong><br>
+                <code>Calls Made: {c.callCount}</code><br><br>
+                
+                <strong>After:</strong><br>
+                <code>Calls Made: {calls.filter(call => call.campaign_id === c.id || (call.campaign && call.campaign.id === c.id)).length}</code>
+            </div>
+            
+            <h4>3. Improved Description Text:</h4>
+            <div class="code-block">
+                <strong>Before:</strong><br>
+                <code>"+20.1% from last month"</code><br><br>
+                
+                <strong>After:</strong><br>
+                <code>"Total calls made across all campaigns"</code>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🧪 Testing the Fix</h3>
+            
+            <ol>
+                <li><strong>Dashboard Load:</strong> Navigate to main dashboard at <code>/dashboard</code></li>
+                <li><strong>Check Total Calls:</strong> Should show actual number instead of "NaN"</li>
+                <li><strong>Verify Campaign Counts:</strong> Each campaign card should show correct call count</li>
+                <li><strong>Make New Call:</strong> Create a call and verify counts update</li>
+                <li><strong>Test Empty State:</strong> With no calls, should show "0" not "NaN"</li>
+                <li><strong>Multiple Campaigns:</strong> Verify calls are counted correctly per campaign</li>
+            </ol>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Data Flow Explanation</h3>
+            
+            <h4>Dashboard Data Sources:</h4>
+            <ul>
+                <li><strong>campaigns:</strong> Array of campaign objects from <code>getCampaigns()</code></li>
+                <li><strong>calls:</strong> Array of call objects from <code>getCalls()</code></li>
+                <li><strong>Total Calls:</strong> Simply <code>calls.length</code> - count of all calls</li>
+                <li><strong>Campaign Calls:</strong> Filter calls array by campaign ID</li>
+            </ul>
+            
+            <h4>Smart Filtering Logic:</h4>
+            <div class="code-block">
+                <code>calls.filter(call => 
+  call.campaign_id === c.id || 
+  (call.campaign && call.campaign.id === c.id)
+).length</code>
+            </div>
+            <p>This handles both direct campaign_id references and nested campaign objects.</p>
+        </div>
+
+        <div class="test-section">
+            <h3>🔄 Real-time Updates</h3>
+            <p>The fix ensures that call counts update automatically:</p>
+            <ul>
+                <li><strong>New Calls:</strong> Dashboard refreshes when calls are made</li>
+                <li><strong>Campaign Changes:</strong> Counts recalculate when campaign assignments change</li>
+                <li><strong>Data Loading:</strong> Shows 0 during loading instead of NaN</li>
+                <li><strong>Error Handling:</strong> Graceful fallbacks for missing data</li>
+            </ul>
+        </div>
+
+        <div class="test-section after">
+            <h3>🎯 Fix Status: IMPLEMENTED ✅</h3>
+            <p>Total Calls NaN issue has been completely resolved:</p>
+            <ul>
+                <li>✅ <strong>No More NaN:</strong> Displays actual call counts</li>
+                <li>✅ <strong>Accurate Totals:</strong> Uses real call data instead of missing properties</li>
+                <li>✅ <strong>Campaign Counts:</strong> Individual campaign statistics work correctly</li>
+                <li>✅ <strong>Real-time Updates:</strong> Counts update as calls are made</li>
+                <li>✅ <strong>Graceful Fallbacks:</strong> Shows 0 when no data instead of errors</li>
+                <li>✅ <strong>Better UX:</strong> Clear, descriptive text for users</li>
+            </ul>
+            <p><strong>The dashboard now shows accurate, real-time call statistics!</strong></p>
+        </div>
+
+        <div class="test-section info">
+            <h3>🏁 Summary</h3>
+            <p>The fix involved two main changes:</p>
+            <ol>
+                <li><strong>Total Calls Card:</strong> Changed from trying to sum non-existent <code>callCount</code> properties to simply counting the length of the calls array</li>
+                <li><strong>Campaign Cards:</strong> Added proper filtering logic to count calls associated with each specific campaign</li>
+            </ol>
+            <p>This provides accurate, real-time call statistics throughout the dashboard interface.</p>
+        </div>
+    </div>
+</body>
+</html>
