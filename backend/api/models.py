@@ -172,6 +172,7 @@ class InterviewCall(models.Model):
     # Call results
     transcript = models.JSONField(default=list, blank=True)
     transcript_text = models.TextField(blank=True, null=True)
+    processed_transcript = models.TextField(blank=True, null=True)  # OpenAI processed structured transcript
     cost = models.DecimalField(max_digits=10, decimal_places=4, blank=True, null=True)
     cost_breakdown = models.JSONField(default=dict, blank=True)
     duration_seconds = models.IntegerField(blank=True, null=True)

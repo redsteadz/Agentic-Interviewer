@@ -246,6 +246,8 @@ class CreateAssistantView(APIView):
             knowledge_text = data.get("knowledge_text", "")
             knowledge_urls = data.get("knowledge_urls", "")
             campaign_id = data.get("campaign_id")
+            system_prompt = data.get("system_prompt", "")
+            end_call_phrases = data.get("end_call_phrases", [])
 
             # Get campaign if provided
             campaign = None
@@ -267,9 +269,23 @@ class CreateAssistantView(APIView):
                 "Content-Type": "application/json",
             }
 
-            system_message = self.create_interview_system_message(
-                knowledge_text, knowledge_urls
-            )
+            # Use custom system prompt if provided, otherwise use default
+            if system_prompt.strip():
+                system_message = system_prompt
+                # Append structured knowledge if available
+                if knowledge_text.strip():
+                    formatted_articles = self.format_articles_for_interview(knowledge_text)
+                    system_message += f"\n\n📚 KNOWLEDGE BASE - ARTICLES TO PROCESS:\n{formatted_articles}"
+                if knowledge_urls.strip():
+                    system_message += f"\n\nREFERENCE URLS:\n{knowledge_urls}"
+            else:
+                system_message = self.create_interview_system_message(
+                    knowledge_text, knowledge_urls
+                )
+                # If knowledge is provided, add structured articles
+                if knowledge_text.strip():
+                    formatted_articles = self.format_articles_for_interview(knowledge_text)
+                    system_message += f"\n\n📚 KNOWLEDGE BASE - ARTICLES TO PROCESS:\n{formatted_articles}"
             professional_first_message = self.create_professional_first_message(
                 first_message, knowledge_text, knowledge_urls
             )
@@ -280,6 +296,12 @@ class CreateAssistantView(APIView):
                 "model": {
                     "provider": model_provider,
                     "model": model,
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": system_message
+                        }
+                    ]
                 },
                 "voice": {"provider": voice_provider, "voiceId": voice_id},
                 "backgroundSound": "off",
@@ -291,6 +313,10 @@ class CreateAssistantView(APIView):
                 "clientMessages": [],
                 "serverMessages": [],
             }
+
+            # Add end call phrases if provided
+            if end_call_phrases and len(end_call_phrases) > 0:
+                payload["endCallPhrases"] = end_call_phrases
 
             if voice_provider == "openai":
                 payload["transcriber"] = {
@@ -385,15 +411,144 @@ class CreateAssistantView(APIView):
                 {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    def create_interview_system_message(self, knowledge_text="", knowledge_urls=""):
-        base_instructions = """You are a highly professional business interviewer conducting a formal VOICE CALL interview. This is a LIVE PHONE CONVERSATION, not text messaging. Your role is to:
+    def format_articles_for_interview(self, knowledge_text):
+        """Format knowledge text into numbered articles for sequential processing"""
+        if not knowledge_text.strip():
+            return ""
+        
+        # Split knowledge by common delimiters (double newlines, article markers, etc.)
+        articles = []
+        
+        # Try to detect if articles are already separated
+        if "\n\n" in knowledge_text:
+            potential_articles = knowledge_text.split("\n\n")
+        elif "Article" in knowledge_text and knowledge_text.count("Article") > 1:
+            # Split by "Article" keyword
+            parts = knowledge_text.split("Article")
+            potential_articles = [("Article" + part).strip() for part in parts[1:]]
+        else:
+            # Split by sentences and group into articles (every 3-5 sentences)
+            sentences = knowledge_text.split(". ")
+            chunk_size = 4
+            potential_articles = [
+                ". ".join(sentences[i:i+chunk_size]) + "."
+                for i in range(0, len(sentences), chunk_size)
+            ]
+        
+        # Clean and number the articles
+        article_number = 1
+        for article in potential_articles:
+            cleaned_article = article.strip()
+            if len(cleaned_article) > 50:  # Only include substantial content
+                articles.append(f"\n=== ARTICLE {article_number} ===\n{cleaned_article}\n")
+                article_number += 1
+        
+        # If no clear articles found, treat entire text as one article
+        if not articles:
+            articles.append(f"\n=== ARTICLE 1 ===\n{knowledge_text.strip()}\n")
+        
+        return "\n".join(articles)
 
-🎤 VOICE CALL CONTEXT:
-- This is a REAL-TIME VOICE CALL INTERVIEW - you are speaking to the candidate over the phone
-- You can HEAR their voice and they can HEAR yours - this is NOT text messaging or chat
-- Respond naturally as if you are having a live conversation over the phone
-- Use conversational speech patterns appropriate for voice communication
-- Acknowledge that you can hear them when they speak to you
+    def process_transcript_with_articles(self, transcript_text, knowledge_text):
+        """Process transcript using OpenAI to extract structured article information"""
+        if not transcript_text or not knowledge_text:
+            return {"error": "Missing transcript or knowledge text"}
+        
+        # Format articles for processing
+        formatted_articles = self.format_articles_for_interview(knowledge_text)
+        
+        # Create OpenAI prompt for transcript processing
+        processing_prompt = f"""
+You are a transcript analysis agent. You have been provided with:
+1. A complete interview transcript
+2. The articles that were discussed during the interview
+
+Your task is to analyze the transcript and extract structured information for each article that was discussed.
+
+📚 ARTICLES THAT WERE AVAILABLE:
+{formatted_articles}
+
+📝 INTERVIEW TRANSCRIPT:
+{transcript_text}
+
+For each article that was discussed in the transcript, provide the following structured output:
+
+**Article [Number]:**
+**Article [Number] Title:** [Extract or create a clear title for the article]
+**Article [Number] Summary:** [Provide a concise 2-3 sentence summary of the article's main points]
+**Article [Number] Keyword Phrase:** [Identify 1-3 key phrases or terms from the article]
+**Article [Number] Transcript:** [Document the candidate's responses, insights, and discussion about this specific article]
+
+IMPORTANT INSTRUCTIONS:
+- Only include articles that were actually discussed in the transcript
+- If an article was not discussed, do not include it in your output
+- Extract the candidate's actual responses and insights from the transcript
+- Maintain the exact format above for each article
+- If no articles were discussed, state "No articles were discussed in this interview"
+"""
+
+        try:
+            # Use OpenAI to process the transcript
+            import openai
+            from django.conf import settings
+            
+            client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
+            
+            response = client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a professional transcript analysis agent."},
+                    {"role": "user", "content": processing_prompt}
+                ],
+                temperature=0.3
+            )
+            
+            return {
+                "success": True,
+                "structured_output": response.choices[0].message.content,
+                "articles_processed": formatted_articles
+            }
+            
+        except Exception as e:
+            return {
+                "error": f"Failed to process transcript: {str(e)}"
+            }
+
+    def create_interview_system_message(self, knowledge_text="", knowledge_urls=""):
+        base_instructions = """🎤 YOU ARE ON A LIVE VOICE CALL INTERVIEW 🎤
+You are conducting a REAL-TIME PHONE CONVERSATION with a candidate. This is NOT text messaging or chat.
+
+📞 VOICE CALL REQUIREMENTS:
+- SPEAK naturally as if talking on the phone
+- Use verbal communication style (not written text style)
+- Keep responses conversational and engaging for voice
+- Use phone etiquette throughout the call
+- Remember: the candidate can HEAR you, not read you
+
+📰 STRICT SEQUENTIAL ARTICLE PROCESSING:
+If a knowledge base with articles is provided, you MUST process articles in this EXACT order:
+
+🔒 **CRITICAL RULE: ONE ARTICLE AT A TIME**
+- Start with Article 1 ONLY
+- Do NOT mention or reference any other articles until Article 1 is COMPLETELY finished
+- Only move to Article 2 after Article 1 discussion is 100% complete
+- Continue this pattern for ALL articles in sequence
+
+📋 **ARTICLE COMPLETION PROCESS:**
+For EACH article, follow these steps IN ORDER:
+
+1. **Introduce Current Article**: "Let's discuss the first article..." (or second, third, etc.)
+2. **Explore the Topic**: Thoroughly discuss the article's content with the candidate
+3. **Gather Complete Responses**: Ask follow-up questions until you have comprehensive insights
+4. **Complete Discussion**: Ensure you have covered all important aspects of the article
+5. **Move to Next**: ONLY then proceed to the next numbered article
+
+📝 **DISCUSSION FOCUS:**
+- Ask about the candidate's thoughts on the article's main points
+- Explore their experience related to the article's topics
+- Assess their understanding and opinions
+- Gather detailed responses about the subject matter
+- Keep discussion focused on the current article only
 
 CORE INTERVIEW PRINCIPLES:
 1. NEVER mention that you are an AI, artificial intelligence, or automated system
@@ -404,7 +559,9 @@ CORE INTERVIEW PRINCIPLES:
 6. Evaluate the candidate's knowledge, experience, and capabilities
 7. Keep your responses concise and focused on questioning
 8. Maintain a respectful but authoritative professional tone
-9. End calls gracefully when the interview is complete
+9. Work through all articles systematically ONE AT A TIME if knowledge base is provided
+10. Focus on gathering comprehensive candidate responses for each article
+11. End calls gracefully when the interview is complete
 
 CRITICAL VOICE CALL INTERVIEWER BEHAVIOR:
 - This is a LIVE PHONE INTERVIEW - respond as if you are speaking to them in real-time
@@ -2081,5 +2238,61 @@ class ElevenLabsVoicesView(APIView):
             logger.error(f"Error fetching ElevenLabs voices: {str(e)}")
             return Response(
                 {"error": "Failed to fetch ElevenLabs voices"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class ProcessTranscriptView(APIView):
+    """Process interview transcript with article-aware analysis"""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            data = request.data
+            transcript_text = data.get('transcript', '')
+            knowledge_text = data.get('knowledge_text', '')
+            call_id = data.get('call_id', '')
+
+            if not transcript_text:
+                return Response(
+                    {"error": "Transcript text is required"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Create an instance to access the method
+            assistant_creator = CreateAssistantView()
+            
+            # Process the transcript
+            result = assistant_creator.process_transcript_with_articles(
+                transcript_text, knowledge_text
+            )
+
+            if "error" in result:
+                return Response(
+                    {"error": result["error"]}, 
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+            # If call_id is provided, try to update the call record
+            if call_id:
+                try:
+                    call = InterviewCall.objects.get(id=call_id, user=request.user)
+                    # Store the processed transcript in a new field or update existing
+                    call.processed_transcript = result["structured_output"]
+                    call.save()
+                except InterviewCall.DoesNotExist:
+                    pass  # Call not found, continue anyway
+
+            return Response({
+                "success": True,
+                "structured_transcript": result["structured_output"],
+                "articles_processed": result["articles_processed"],
+                "call_id": call_id
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Error processing transcript: {str(e)}")
+            return Response(
+                {"error": f"Failed to process transcript: {str(e)}"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

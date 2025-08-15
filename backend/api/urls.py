@@ -57,6 +57,8 @@ urlpatterns = [
     path("analyze-website/", views.AnalyzeWebsiteView.as_view(), name="analyze_website"),
     # ElevenLabs voices endpoint
     path("elevenlabs-voices/", views.ElevenLabsVoicesView.as_view(), name="elevenlabs_voices"),
+    # Transcript processing endpoint
+    path("process-transcript/", views.ProcessTranscriptView.as_view(), name="process_transcript"),
     # Routes listing
     path("", views.getRoutes, name="routes"),
 ]
