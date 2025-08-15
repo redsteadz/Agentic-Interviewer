@@ -28,10 +28,18 @@ DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if os.getenv('ALLOWED_HOSTS') else []
 
-# Production settings for Render
+# Production settings for Digital Ocean
 if DJANGO_ENVIRONMENT == 'production':
     DEBUG = False
-    ALLOWED_HOSTS = ['*']  # Render will provide the actual domain
+    ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',')
+    
+    # Security settings
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    X_FRAME_OPTIONS = 'DENY'
 
 
 # Application definition
@@ -165,7 +173,8 @@ CORS_ALLOW_ALL_ORIGINS = True
 if DJANGO_ENVIRONMENT == 'production':
     CORS_ALLOW_ALL_ORIGINS = False
     CORS_ALLOWED_ORIGINS = [
-        "https://your-app-name.onrender.com",  # Replace with your actual Render URL
+        "https://yourdomain.com",  # Replace with your actual domain
+        "https://www.yourdomain.com",  # Replace with your actual domain
     ]
     CORS_ALLOW_CREDENTIALS = True
 

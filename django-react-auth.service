@@ -1,0 +1,18 @@
+[Unit]
+Description=Django React Auth Application
+After=network.target postgresql.service
+
+[Service]
+Type=exec
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/django-react-auth/backend
+Environment=PATH=/var/www/django-react-auth/backend/venv/bin
+EnvironmentFile=/var/www/django-react-auth/backend/.env
+ExecStart=/var/www/django-react-auth/backend/venv/bin/gunicorn backend.wsgi:application --bind 127.0.0.1:8000 --workers 3 --timeout 120
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
