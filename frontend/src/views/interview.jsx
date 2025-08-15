@@ -51,18 +51,82 @@ const InterviewDashboard = () => {
   const [configLoading, setConfigLoading] = useState(false);
   const [configMessage, setConfigMessage] = useState('');
 
+  // Prompt State
+  const [promptForm, setPromptForm] = useState({
+    system_prompt: `🎤 YOU ARE ON A LIVE VOICE CALL INTERVIEW 🎤
+You are conducting a REAL-TIME PHONE CONVERSATION with a candidate. This is NOT text messaging or chat.
+
+📞 VOICE CALL REQUIREMENTS:
+- SPEAK naturally as if talking on the phone
+- Use verbal communication style (not written text style)
+- Keep responses conversational and engaging for voice
+- Use phone etiquette throughout the call
+- Remember: the candidate can HEAR you, not read you
+
+📰 STRICT SEQUENTIAL ARTICLE PROCESSING:
+You MUST process articles in this EXACT order and method:
+
+🔒 **CRITICAL RULE: ONE ARTICLE AT A TIME**
+- Start with Article 1 ONLY
+- Do NOT mention or reference any other articles until Article 1 is COMPLETELY finished
+- Only move to Article 2 after Article 1 discussion is 100% complete
+- Continue this pattern for ALL articles in sequence
+
+📋 **ARTICLE COMPLETION PROCESS:**
+For EACH article, follow these steps IN ORDER:
+
+1. **Introduce Current Article**: "Let's discuss the first article..." (or second, third, etc.)
+2. **Explore the Topic**: Thoroughly discuss the article's content with the candidate
+3. **Gather Complete Responses**: Ask follow-up questions until you have comprehensive insights
+4. **Complete Discussion**: Ensure you have covered all important aspects of the article
+5. **Move to Next**: ONLY then proceed to the next numbered article
+
+📝 **DISCUSSION FOCUS:**
+- Ask about the candidate's thoughts on the article's main points
+- Explore their experience related to the article's topics
+- Assess their understanding and opinions
+- Gather detailed responses about the subject matter
+- Keep discussion focused on the current article only
+
+🎯 SUCCESS CRITERIA:
+- Process articles sequentially without skipping
+- Complete full discussion of current article before moving forward
+- Maintain professional voice call demeanor throughout
+- Focus on gathering comprehensive candidate responses for each article
+
+⚠️ IMPORTANT: You are speaking to someone on the phone RIGHT NOW. Act accordingly and stay focused on completing one article at a time.`,
+    first_message: 'Good day, I\'ll be conducting your interview today. Let\'s begin.',
+    end_call_phrases: [
+      'thank you for your time',
+      'we\'ll be in touch',
+      'the interview is complete',
+      'that concludes our interview',
+      'we have all the information we need'
+    ].join('\n')
+  });
+
   // Assistant State
   const [assistantForm, setAssistantForm] = useState({
     name: 'Professional Interviewer',
-    first_message: 'Good day, I\'ll be conducting your interview today. Let\'s begin.',
+    first_message: '',
     voice_provider: 'openai',
     voice_id: 'nova',
     model_provider: 'openai',
     model: 'gpt-4',
     knowledge_text: '',
     knowledge_urls: '',
-    campaign_id: campaignId || null
+    campaign_id: campaignId || null,
+    system_prompt: ''
   });
+
+  // Sync prompt form with assistant form
+  useEffect(() => {
+    setAssistantForm(prev => ({
+      ...prev,
+      first_message: promptForm.first_message,
+      system_prompt: promptForm.system_prompt
+    }));
+  }, [promptForm.first_message, promptForm.system_prompt]);
   const [assistantLoading, setAssistantLoading] = useState(false);
   const [assistantMessage, setAssistantMessage] = useState('');
   const [assistants, setAssistants] = useState([]);
@@ -272,11 +336,13 @@ const InterviewDashboard = () => {
       // Combine AI Knowledge Base with manual knowledge
       const combinedKnowledge = getCombinedKnowledge();
       
-      // Create enhanced assistant form with combined knowledge
+      // Create enhanced assistant form with combined knowledge and custom prompts
       const enhancedAssistantForm = {
         ...assistantForm,
         knowledge_text: combinedKnowledge,
-        first_message: "Hello, I'm a professional AI interviewer. I'm here to conduct a thorough and comprehensive interview with you today. Please let me know when you're ready to begin, and I'll start with some questions based on your background and the role requirements."
+        first_message: promptForm.first_message,
+        system_prompt: promptForm.system_prompt,
+        end_call_phrases: promptForm.end_call_phrases.split('\n').filter(phrase => phrase.trim())
       };
 
       const response = await createAssistant(enhancedAssistantForm);
@@ -843,10 +909,14 @@ const InterviewDashboard = () => {
       </div>
 
       <Tabs defaultValue="config" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-7">
           <TabsTrigger value="config" className="flex items-center gap-2 text-sm">
             <Settings className="h-4 w-4 flex-shrink-0" />
             <span className="truncate">Configuration</span>
+          </TabsTrigger>
+          <TabsTrigger value="prompts" className="flex items-center gap-2 text-sm">
+            <FileText className="h-4 w-4 flex-shrink-0" />
+            <span className="truncate">Prompts</span>
           </TabsTrigger>
           <TabsTrigger value="assistant" className="flex items-center gap-2 text-sm">
             <User className="h-4 w-4 flex-shrink-0" />
@@ -975,6 +1045,203 @@ const InterviewDashboard = () => {
           </Card>
         </TabsContent>
 
+        {/* Prompts Configuration Tab */}
+        <TabsContent value="prompts">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                VAPI Prompt Configuration
+              </CardTitle>
+              <CardDescription>
+                Configure the AI system prompts and messages for your interview assistant
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              
+              {/* System Prompt */}
+              <div className="space-y-2">
+                <Label htmlFor="systemPrompt">System Prompt</Label>
+                <Textarea
+                  id="systemPrompt"
+                  value={promptForm.system_prompt}
+                  onChange={(e) => setPromptForm(prev => ({
+                    ...prev,
+                    system_prompt: e.target.value
+                  }))}
+                  placeholder="Enter the main system prompt that defines the AI interviewer's behavior..."
+                  rows={12}
+                  className="font-mono text-sm"
+                />
+                <p className="text-sm text-muted-foreground">
+                  This is the main system prompt that defines how the AI interviewer behaves during voice calls.
+                </p>
+              </div>
+
+              {/* First Message */}
+              <div className="space-y-2">
+                <Label htmlFor="firstMessage">First Message</Label>
+                <Input
+                  id="firstMessage"
+                  value={promptForm.first_message}
+                  onChange={(e) => setPromptForm(prev => ({
+                    ...prev,
+                    first_message: e.target.value
+                  }))}
+                  placeholder="Good day, I'll be conducting your interview today. Let's begin."
+                />
+                <p className="text-sm text-muted-foreground">
+                  The opening message the AI will say when the call starts.
+                </p>
+              </div>
+
+              {/* End Call Phrases */}
+              <div className="space-y-2">
+                <Label htmlFor="endCallPhrases">End Call Trigger Phrases</Label>
+                <Textarea
+                  id="endCallPhrases"
+                  value={promptForm.end_call_phrases}
+                  onChange={(e) => setPromptForm(prev => ({
+                    ...prev,
+                    end_call_phrases: e.target.value
+                  }))}
+                  placeholder="Enter phrases that should trigger the end of the call, one per line..."
+                  rows={5}
+                />
+                <p className="text-sm text-muted-foreground">
+                  Phrases that will automatically end the call when detected (one per line).
+                </p>
+              </div>
+
+              {/* Prompt Template Buttons */}
+              <div className="space-y-3">
+                <Label>Quick Templates</Label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPromptForm(prev => ({
+                      ...prev,
+                      system_prompt: `🎤 YOU ARE ON A LIVE TECHNICAL VOICE CALL INTERVIEW 🎤
+You are conducting a REAL-TIME PHONE CONVERSATION with a technical candidate. This is NOT text messaging or chat.
+
+📞 VOICE CALL REQUIREMENTS:
+- SPEAK naturally as if talking on the phone about technical topics
+- Use verbal communication style (not written text style)
+- Keep technical explanations conversational and engaging for voice
+- Use phone etiquette throughout the technical interview
+- Remember: the candidate can HEAR you discussing technical concepts
+
+🔧 TECHNICAL SKILLS FOCUS:
+- Programming languages and frameworks
+- Problem-solving approach
+- System design thinking
+- Code quality and best practices
+
+📰 STRICT SEQUENTIAL TECHNICAL ARTICLE PROCESSING:
+You MUST process technical articles in this EXACT order:
+
+🔒 **CRITICAL RULE: ONE TECHNICAL ARTICLE AT A TIME**
+- Start with Technical Article 1 ONLY
+- Do NOT mention or reference any other technical articles until Article 1 is COMPLETELY finished
+- Only move to Technical Article 2 after Article 1 discussion is 100% complete
+- Continue this pattern for ALL technical articles in sequence
+
+📋 **TECHNICAL ARTICLE COMPLETION PROCESS:**
+For EACH technical article, follow these steps IN ORDER:
+
+1. **Introduce Current Technical Article**: "Let's discuss this technical article about..." 
+2. **Explore Technical Concepts**: Thoroughly discuss the technical topics in the article
+3. **Assess Technical Understanding**: Ask follow-up questions about technical concepts
+4. **Complete Technical Discussion**: Ensure you have thoroughly covered all technical aspects
+5. **Move to Next Technical Article**: ONLY then proceed to the next numbered technical article
+
+📝 **TECHNICAL DISCUSSION FOCUS:**
+- Ask about the candidate's understanding of technical concepts in the article
+- Explore their practical experience with the technologies mentioned
+- Assess their problem-solving approach related to the article's topics
+- Gather detailed technical responses and insights
+- Keep technical discussion focused on the current article only
+
+⚠️ IMPORTANT: You are speaking to a technical candidate on the phone RIGHT NOW. Act accordingly and stay focused on completing one technical article at a time.`
+                    }))}
+                  >
+                    Technical Interview
+                  </Button>
+                  
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPromptForm(prev => ({
+                      ...prev,
+                      system_prompt: `You are an HR interviewer conducting a behavioral interview over the phone. Focus on:
+
+🤝 BEHAVIORAL ASSESSMENT:
+- Past experiences and achievements
+- Leadership and teamwork skills
+- Problem-solving in challenging situations
+- Cultural fit and values alignment
+
+📞 VOICE INTERVIEW APPROACH:
+- Create a comfortable, conversational atmosphere
+- Use STAR method for behavioral questions
+- Listen actively and ask follow-up questions
+- Maintain professional but warm tone
+
+Evaluate soft skills, motivation, and cultural alignment through engaging conversation.`
+                    }))}
+                  >
+                    Behavioral Interview
+                  </Button>
+                  
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPromptForm(prev => ({
+                      ...prev,
+                      system_prompt: `You are conducting a sales role interview via phone call. Focus on:
+
+💼 SALES ASSESSMENT:
+- Sales experience and methodology
+- Communication and persuasion skills
+- Customer relationship management
+- Results and performance metrics
+
+📞 SALES INTERVIEW STYLE:
+- Engage in dynamic, energetic conversation
+- Test communication skills in real-time
+- Evaluate confidence and presentation ability
+- Assess consultative selling approach
+
+Maintain high energy and evaluate both sales acumen and phone presence.`
+                    }))}
+                  >
+                    Sales Interview
+                  </Button>
+                </div>
+              </div>
+
+              {/* Save Button */}
+              <div className="pt-4">
+                <Button 
+                  onClick={() => {
+                    // Save prompts (could add API call here)
+                    alert('Prompts saved! These will be used when creating new assistants.');
+                  }}
+                  className="w-full"
+                >
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Save Prompt Configuration
+                </Button>
+              </div>
+
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* Assistant Configuration Tab */}
         <TabsContent value="assistant">
           <Card>
@@ -1008,12 +1275,13 @@ const InterviewDashboard = () => {
                     <Input
                       id="firstMessage"
                       value={assistantForm.first_message}
-                      onChange={(e) => setAssistantForm(prev => ({
-                        ...prev,
-                        first_message: e.target.value
-                      }))}
-                      placeholder="Good day, I'll be conducting your interview today."
+                      readOnly
+                      placeholder="Controlled by Prompts tab"
+                      className="bg-gray-50"
                     />
+                    <p className="text-sm text-muted-foreground">
+                      This is controlled by the <strong>Prompts</strong> tab. Go to the Prompts tab to edit the first message.
+                    </p>
                   </div>
 
                   <div className="space-y-2">
@@ -1029,7 +1297,6 @@ const InterviewDashboard = () => {
                     >
                       <option value="openai">OpenAI (Recommended)</option>
                       <option value="11labs">ElevenLabs</option>
-                      <option value="playht">Play.ht</option>
                     </select>
                   </div>
 
@@ -1076,6 +1343,53 @@ const InterviewDashboard = () => {
                         Loading ElevenLabs voices...
                       </div>
                     )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="modelProvider">AI Model Provider</Label>
+                    <select
+                      id="modelProvider"
+                      className="w-full p-2 border rounded"
+                      value={assistantForm.model_provider}
+                      onChange={(e) => setAssistantForm(prev => ({
+                        ...prev,
+                        model_provider: e.target.value
+                      }))}
+                    >
+                      <option value="openai">OpenAI</option>
+                      <option value="anthropic">Anthropic</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="model">AI Model</Label>
+                    <select
+                      id="model"
+                      className="w-full p-2 border rounded"
+                      value={assistantForm.model}
+                      onChange={(e) => setAssistantForm(prev => ({
+                        ...prev,
+                        model: e.target.value
+                      }))}
+                    >
+                      {assistantForm.model_provider === 'anthropic' ? (
+                        <>
+                          <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet (Latest)</option>
+                          <option value="claude-3-sonnet-20240229">Claude 3 Sonnet</option>
+                          <option value="claude-3-haiku-20240307">Claude 3 Haiku</option>
+                        </>
+                      ) : (
+                        // OpenAI models (default)
+                        <>
+                          <option value="gpt-4">GPT-4 (Current)</option>
+                          <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                          <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                        </>
+                      )}
+                    </select>
+                    <p className="text-sm text-gray-600">
+                      Currently using: <strong>{assistantForm.model_provider} - {assistantForm.model}</strong>
+                    </p>
                   </div>
                 </div>
 

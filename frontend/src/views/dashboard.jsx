@@ -36,6 +36,7 @@ export default function Dashboard() {
     const fetchCampaigns = async () => {
       try {
         const campaigns = await getCampaigns()
+        console.log('Loaded campaigns:', campaigns.data)
         setCampaigns(campaigns.data || [])
       } catch (error) {
         console.error("Failed to fetch campaigns:", error)
@@ -51,6 +52,7 @@ export default function Dashboard() {
       setCallsLoading(true)
       try {
         const response = await getCalls()
+        console.log('Loaded calls:', response.data)
         setCalls(response.data || [])
       } catch (error) {
         console.error("Failed to fetch calls:", error)
@@ -240,7 +242,25 @@ export default function Dashboard() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground">
-                    Calls Made: {calls.filter(call => call.campaign_id === c.id || (call.campaign && call.campaign.id === c.id)).length}
+                    Calls Made: {(() => {
+                      const campaignCalls = calls.filter(call => {
+                        const match = call.campaign_id === c.id || 
+                                     (call.campaign && call.campaign.id === c.id) ||
+                                     call.campaign_name === c.name ||
+                                     (call.assistant && call.assistant.campaign_id === c.id);
+                        if (match) {
+                          console.log(`Call ${call.id} matches campaign ${c.name} (${c.id}):`, {
+                            call_campaign_id: call.campaign_id,
+                            call_campaign_object: call.campaign,
+                            call_campaign_name: call.campaign_name,
+                            assistant_campaign_id: call.assistant?.campaign_id
+                          });
+                        }
+                        return match;
+                      });
+                      console.log(`Campaign "${c.name}" (ID: ${c.id}) has ${campaignCalls.length} calls`);
+                      return campaignCalls.length;
+                    })()}
                   </p>
                 </CardContent>
               </Card>
