@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/4.0/ref/settings/
 
 from pathlib import Path
 from datetime import timedelta
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -29,6 +30,7 @@ DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if os.getenv('ALLOWED_HOSTS') else []
 
 # Production settings for Digital Ocean
+DJANGO_ENVIRONMENT = 'development'
 if DJANGO_ENVIRONMENT == 'production':
     DEBUG = False
     ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',')
