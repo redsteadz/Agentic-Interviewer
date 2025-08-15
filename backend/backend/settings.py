@@ -170,6 +170,11 @@ SIMPLE_JWT = {
 }
 
 CORS_ALLOW_ALL_ORIGINS = True
+# Cookie settings for cross-origin dev
+SESSION_COOKIE_SAMESITE = None
+SESSION_COOKIE_SECURE = False  # True if using HTTPS
+CSRF_COOKIE_SAMESITE = None
+CSRF_COOKIE_SECURE = False     # True if using HTTPS
 
 # Production CORS settings
 if DJANGO_ENVIRONMENT == 'production':
