@@ -11,7 +11,7 @@ start:
 
 backend:
 	@echo "Starting Django backend..."
-	@cd $(BACKEND_DIR) && python manage.py runserver
+	@cd $(BACKEND_DIR) && python manage.py runserver 0.0.0.0:8000
 
 frontend:
 	@echo "Starting Vite frontend..."
