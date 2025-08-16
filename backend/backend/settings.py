@@ -27,7 +27,7 @@ SECRET_KEY = 'django-insecure-xmyy56c+#c$!7u^#8#&(egh&2_+or##y4+t)xps)i#zbhlw(5o
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if os.getenv('ALLOWED_HOSTS') else []
+ALLOWED_HOSTS = ["*"]  # not safe for production!
 
 # Production settings for Digital Ocean
 DJANGO_ENVIRONMENT = 'development'
@@ -170,7 +170,6 @@ SIMPLE_JWT = {
 }
 
 CORS_ALLOW_ALL_ORIGINS = True
-# Cookie settings for cross-origin dev
 SESSION_COOKIE_SAMESITE = None
 SESSION_COOKIE_SECURE = False  # True if using HTTPS
 CSRF_COOKIE_SAMESITE = None
