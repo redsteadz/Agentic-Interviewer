@@ -674,6 +674,26 @@ class VapiPhoneNumbersView(APIView):
 
             phone_numbers = response.json()
 
+            # Create or update PhoneNumber objects for the user
+            for number_data in phone_numbers:
+                phone_number_obj, created = PhoneNumber.objects.get_or_create(
+                    user=request.user,
+                    vapi_phone_number_id=number_data.get("id"),
+                    defaults={
+                        "phone_number": number_data.get("number", ""),
+                        "friendly_name": number_data.get("name", ""),
+                        "capabilities": number_data,
+                        "is_active": True,
+                    }
+                )
+                # Update existing records if needed
+                if not created:
+                    phone_number_obj.phone_number = number_data.get("number", "")
+                    phone_number_obj.friendly_name = number_data.get("name", "")
+                    phone_number_obj.capabilities = number_data
+                    phone_number_obj.is_active = True
+                    phone_number_obj.save()
+
             return Response({"success": True, "phone_numbers": phone_numbers})
 
         except requests.exceptions.RequestException as e:
