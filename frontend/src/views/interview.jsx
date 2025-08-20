@@ -45,8 +45,10 @@ const InterviewDashboard = () => {
     twilio_account_sid: '',
     twilio_auth_token: '',
     vapi_api_key: '',
-    twilio_configured: false,
-    vapi_configured: false
+    openai_api_key: '',
+    is_twilio_configured: false,
+    is_vapi_configured: false,
+    is_openai_configured: false
   });
   const [configLoading, setConfigLoading] = useState(false);
   const [configMessage, setConfigMessage] = useState('');
@@ -245,7 +247,8 @@ For EACH article, follow these steps IN ORDER:
       const response = await updateApiConfig({
         twilio_account_sid: apiConfig.twilio_account_sid,
         twilio_auth_token: apiConfig.twilio_auth_token,
-        vapi_api_key: apiConfig.vapi_api_key
+        vapi_api_key: apiConfig.vapi_api_key,
+        openai_api_key: apiConfig.openai_api_key
       });
 
       if (response.data.success) {
@@ -270,7 +273,8 @@ For EACH article, follow these steps IN ORDER:
         ...prev,
         twilio_account_sid: '',
         twilio_auth_token: '',
-        vapi_api_key: ''
+        vapi_api_key: '',
+        openai_api_key: ''
       }));
     } catch (error) {
       setConfigMessage(`Error: ${error.response?.data?.error || error.message}`);
@@ -952,14 +956,14 @@ For EACH article, follow these steps IN ORDER:
                 API Configuration
               </CardTitle>
               <CardDescription>
-                Configure your Twilio and Vapi API credentials
+                Configure your Twilio, Vapi, and OpenAI API credentials
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-3 gap-4 mb-4">
                 <div className="flex items-center gap-2">
                   <span>Twilio Configured:</span>
-                  {apiConfig.twilio_configured ? (
+                  {apiConfig.is_twilio_configured ? (
                     <Badge className="bg-green-100 text-green-800">
                       <CheckCircle className="h-3 w-3 mr-1" /> Yes
                     </Badge>
@@ -971,7 +975,19 @@ For EACH article, follow these steps IN ORDER:
                 </div>
                 <div className="flex items-center gap-2">
                   <span>Vapi Configured:</span>
-                  {apiConfig.vapi_configured ? (
+                  {apiConfig.is_vapi_configured ? (
+                    <Badge className="bg-green-100 text-green-800">
+                      <CheckCircle className="h-3 w-3 mr-1" /> Yes
+                    </Badge>
+                  ) : (
+                    <Badge variant="destructive">
+                      <XCircle className="h-3 w-3 mr-1" /> No
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span>OpenAI Configured:</span>
+                  {apiConfig.is_openai_configured ? (
                     <Badge className="bg-green-100 text-green-800">
                       <CheckCircle className="h-3 w-3 mr-1" /> Yes
                     </Badge>
@@ -1022,6 +1038,20 @@ For EACH article, follow these steps IN ORDER:
                       vapi_api_key: e.target.value
                     }))}
                     placeholder="Enter Vapi API Key"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="openaiApiKey">OpenAI API Key</Label>
+                  <Input
+                    id="openaiApiKey"
+                    type="password"
+                    value={apiConfig.openai_api_key}
+                    onChange={(e) => setApiConfig(prev => ({
+                      ...prev,
+                      openai_api_key: e.target.value
+                    }))}
+                    placeholder="Enter OpenAI API Key (starts with sk-)"
                   />
                 </div>
 

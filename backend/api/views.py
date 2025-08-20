@@ -136,8 +136,10 @@ class APIConfigurationView(APIView):
                 {
                     "twilio_configured": config.is_twilio_configured,
                     "vapi_configured": config.is_vapi_configured,
+                    "openai_configured": config.is_openai_configured,
                     "twilio_account_sid": config.twilio_account_sid or "",
                     "vapi_api_key_set": bool(config.vapi_api_key),
+                    "openai_api_key_set": bool(config.openai_api_key),
                     **serializer.data,
                 }
             )
@@ -146,8 +148,10 @@ class APIConfigurationView(APIView):
                 {
                     "twilio_configured": False,
                     "vapi_configured": False,
+                    "openai_configured": False,
                     "twilio_account_sid": "",
                     "vapi_api_key_set": False,
+                    "openai_api_key_set": False,
                 }
             )
 
@@ -162,6 +166,8 @@ class APIConfigurationView(APIView):
                 config.twilio_auth_token = request.data["twilio_auth_token"]
             if "vapi_api_key" in request.data:
                 config.vapi_api_key = request.data["vapi_api_key"]
+            if "openai_api_key" in request.data:
+                config.openai_api_key = request.data["openai_api_key"]
 
             config.save()
 
@@ -449,10 +455,29 @@ class CreateAssistantView(APIView):
         
         return "\n".join(articles)
 
-    def process_transcript_with_articles(self, transcript_text, knowledge_text):
+    def process_transcript_with_articles(self, transcript_text, knowledge_text, user=None):
         """Process transcript using OpenAI to extract structured article information"""
         if not transcript_text or not knowledge_text:
             return {"error": "Missing transcript or knowledge text"}
+        
+        # Get user's OpenAI API key if user is provided
+        openai_api_key = None
+        if user:
+            try:
+                config = APIConfiguration.objects.get(user=user)
+                if config.is_openai_configured:
+                    openai_api_key = config.openai_api_key
+                else:
+                    return {"error": "OpenAI API key not configured for this user"}
+            except APIConfiguration.DoesNotExist:
+                return {"error": "API configuration not found for this user"}
+        else:
+            # Fallback to global settings
+            from django.conf import settings
+            openai_api_key = settings.OPENAI_API_KEY
+        
+        if not openai_api_key:
+            return {"error": "OpenAI API key not available"}
         
         # Format articles for processing
         formatted_articles = self.format_articles_for_interview(knowledge_text)
@@ -488,13 +513,12 @@ IMPORTANT INSTRUCTIONS:
 """
 
         try:
-            # Use OpenAI to process the transcript
+            # Use OpenAI to process the transcript (v0.28.1 API)
             import openai
-            from django.conf import settings
             
-            client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
+            openai.api_key = openai_api_key
             
-            response = client.chat.completions.create(
+            response = openai.ChatCompletion.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a professional transcript analysis agent."},
@@ -1168,8 +1192,89 @@ class CallDetailView(APIView):
         call.outcome_status = call_outcome["status"]
         call.outcome_description = call_outcome["description"]
 
+        # Store recording URL from VAPI
+        if call_data.get("recordingUrl"):
+            call.recording_url = call_data["recordingUrl"]
+            
         call.save()
+        
+        # Download recording file if URL is provided and not already downloaded
+        if call_data.get("recordingUrl") and not call.recording_file:
+            self.download_call_recording(call, call_data["recordingUrl"])
+        
+        # Automatically process transcript with OpenAI if transcript was updated and not already processed
+        if (call_data.get("transcript") and call.transcript_text and 
+            not call.processed_transcript):
+            self.auto_process_transcript(call)
+        
         return call
+
+    def auto_process_transcript(self, call):
+        """Automatically process transcript with OpenAI in the background"""
+        try:
+            # Get the assistant's knowledge text for processing
+            knowledge_text = ""
+            if call.assistant and call.assistant.knowledge_text:
+                knowledge_text = call.assistant.knowledge_text
+            
+            # Only process if we have knowledge text to work with
+            if knowledge_text and call.transcript_text:
+                # Create an instance to access the method
+                assistant_creator = CreateAssistantView()
+                
+                # Process the transcript with user's API key
+                result = assistant_creator.process_transcript_with_articles(
+                    call.transcript_text, knowledge_text, user=call.user
+                )
+                
+                # If processing was successful, save the result
+                if result.get("success") and "structured_output" in result:
+                    call.processed_transcript = result["structured_output"]
+                    call.save()
+                    logger.info(f"Successfully auto-processed transcript for call {call.id}")
+                else:
+                    # Log the error but don't fail the call update
+                    error_msg = result.get("error", "Unknown error")
+                    logger.warning(f"Auto-processing failed for call {call.id}: {error_msg}")
+            else:
+                logger.debug(f"Skipping auto-processing for call {call.id}: missing knowledge_text or transcript_text")
+                
+        except Exception as e:
+            # Log the error but don't fail the call update
+            logger.error(f"Exception during auto-processing for call {call.id}: {str(e)}")
+
+    def download_call_recording(self, call, recording_url):
+        """Download call recording from VAPI URL and store it locally"""
+        import requests
+        import os
+        from django.core.files.base import ContentFile
+        from urllib.parse import urlparse
+        
+        try:
+            logger.info(f"Downloading recording for call {call.id} from {recording_url}")
+            
+            # Make request to download the recording
+            response = requests.get(recording_url, timeout=30)
+            response.raise_for_status()
+            
+            # Get file extension from URL or use .mp3 as default
+            parsed_url = urlparse(recording_url)
+            file_extension = os.path.splitext(parsed_url.path)[1] or '.mp3'
+            
+            # Generate filename: call_<id>_<timestamp><extension>
+            from django.utils import timezone
+            timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"call_{call.id}_{timestamp}{file_extension}"
+            
+            # Save the file
+            file_content = ContentFile(response.content, name=filename)
+            call.recording_file.save(filename, file_content)
+            call.save()
+            
+            logger.info(f"Successfully downloaded recording for call {call.id}: {filename}")
+            
+        except Exception as e:
+            logger.error(f"Failed to download recording for call {call.id}: {str(e)}")
 
     def determine_call_outcome(self, call_data):
         """Determine call outcome based on Vapi data"""
@@ -2282,9 +2387,9 @@ class ProcessTranscriptView(APIView):
             # Create an instance to access the method
             assistant_creator = CreateAssistantView()
             
-            # Process the transcript
+            # Process the transcript with user's API key
             result = assistant_creator.process_transcript_with_articles(
-                transcript_text, knowledge_text
+                transcript_text, knowledge_text, user=request.user
             )
 
             if "error" in result:

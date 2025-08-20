@@ -21,7 +21,7 @@ class Campaign(models.Model):
 
 
 class APIConfiguration(models.Model):
-    """Store user's API configuration for Twilio and Vapi"""
+    """Store user's API configuration for Twilio, Vapi, and OpenAI"""
 
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, related_name="api_config"
@@ -29,6 +29,7 @@ class APIConfiguration(models.Model):
     twilio_account_sid = models.CharField(max_length=255, blank=True, null=True)
     twilio_auth_token = models.CharField(max_length=255, blank=True, null=True)
     vapi_api_key = models.CharField(max_length=255, blank=True, null=True)
+    openai_api_key = models.CharField(max_length=255, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -46,6 +47,10 @@ class APIConfiguration(models.Model):
     @property
     def is_vapi_configured(self):
         return bool(self.vapi_api_key and not self.vapi_api_key.startswith("your_"))
+
+    @property
+    def is_openai_configured(self):
+        return bool(self.openai_api_key and not self.openai_api_key.startswith("your_"))
 
 
 class InterviewAssistant(models.Model):
@@ -173,6 +178,8 @@ class InterviewCall(models.Model):
     transcript = models.JSONField(default=list, blank=True)
     transcript_text = models.TextField(blank=True, null=True)
     processed_transcript = models.TextField(blank=True, null=True)  # OpenAI processed structured transcript
+    recording_url = models.URLField(blank=True, null=True)  # VAPI recording URL
+    recording_file = models.FileField(upload_to='call_recordings/', blank=True, null=True)  # Downloaded recording file
     cost = models.DecimalField(max_digits=10, decimal_places=4, blank=True, null=True)
     cost_breakdown = models.JSONField(default=dict, blank=True)
     duration_seconds = models.IntegerField(blank=True, null=True)
@@ -191,6 +198,11 @@ class InterviewCall(models.Model):
             seconds = self.duration_seconds % 60
             return f"{minutes}:{seconds:02d}"
         return None
+    
+    @property
+    def has_recording(self):
+        """Check if this call has a downloaded recording file"""
+        return bool(self.recording_file)
 
     class Meta:
         ordering = ["-created_at"]

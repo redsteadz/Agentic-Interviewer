@@ -61,14 +61,17 @@ class APIConfigurationSerializer(serializers.ModelSerializer):
             "twilio_account_sid",
             "twilio_auth_token",
             "vapi_api_key",
+            "openai_api_key",
             "is_twilio_configured",
             "is_vapi_configured",
+            "is_openai_configured",
             "created_at",
             "updated_at",
         ]
         extra_kwargs = {
             "twilio_auth_token": {"write_only": True},
             "vapi_api_key": {"write_only": True},
+            "openai_api_key": {"write_only": True},
         }
 
     def to_representation(self, instance):
@@ -78,6 +81,8 @@ class APIConfigurationSerializer(serializers.ModelSerializer):
             data["twilio_auth_token"] = bool(instance.twilio_auth_token)
         if "vapi_api_key" in data:
             data["vapi_api_key"] = bool(instance.vapi_api_key)
+        if "openai_api_key" in data:
+            data["openai_api_key"] = bool(instance.openai_api_key)
         return data
 
 
@@ -175,6 +180,17 @@ class InterviewCallSerializer(serializers.ModelSerializer):
     )
     campaign_name = serializers.CharField(source="campaign.name", read_only=True)
     duration_formatted = serializers.ReadOnlyField()
+    has_recording = serializers.ReadOnlyField()
+    recording_file_url = serializers.SerializerMethodField()
+    
+    def get_recording_file_url(self, obj):
+        """Return the URL for the recording file if it exists"""
+        if obj.recording_file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.recording_file.url)
+            return obj.recording_file.url
+        return None
 
     class Meta:
         model = InterviewCall
@@ -202,6 +218,9 @@ class InterviewCallSerializer(serializers.ModelSerializer):
             "duration_seconds",
             "duration_formatted",
             "end_reason",
+            "recording_url",
+            "recording_file_url", 
+            "has_recording",
             "raw_call_data",
         ]
         read_only_fields = [
@@ -217,6 +236,7 @@ class InterviewCallSerializer(serializers.ModelSerializer):
             "cost_breakdown",
             "duration_seconds",
             "end_reason",
+            "recording_url",
             "raw_call_data",
         ]
 

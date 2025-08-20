@@ -422,9 +422,31 @@ export default function Dashboard() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium text-sm">Transcript</span>
+                      <div className="flex items-center gap-2 justify-between">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium text-sm">Transcript</span>
+                        </div>
+                        {call.has_recording && call.recording_file_url && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const audio = new Audio(call.recording_file_url);
+                              audio.play().catch(err => {
+                                console.error('Failed to play audio:', err);
+                                alert('Failed to play recording. Please try again.');
+                              });
+                            }}
+                            className="flex items-center gap-1"
+                          >
+                            <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                            </svg>
+                            Play
+                          </Button>
+                        )}
                       </div>
                       <div className="bg-muted/30 rounded-md p-3 max-h-64 overflow-y-auto">
                         <pre className="text-sm whitespace-pre-wrap font-sans">
@@ -561,8 +583,28 @@ export default function Dashboard() {
               {/* Transcript */}
               {(selectedCall.transcript_text || selectedCall.transcript) && (
                 <Card>
-                  <CardHeader>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
                     <CardTitle className="text-lg">Transcript</CardTitle>
+                    {selectedCall.has_recording && selectedCall.recording_file_url && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const audio = new Audio(selectedCall.recording_file_url);
+                          audio.play().catch(err => {
+                            console.error('Failed to play audio:', err);
+                            alert('Failed to play recording. Please try again.');
+                          });
+                        }}
+                        className="flex items-center gap-2"
+                      >
+                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                        </svg>
+                        Play Recording
+                      </Button>
+                    )}
                   </CardHeader>
                   <CardContent>
                     <div className="bg-muted/30 rounded-md p-4 max-h-96 overflow-y-auto">

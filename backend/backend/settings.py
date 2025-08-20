@@ -211,6 +211,13 @@ if DJANGO_ENVIRONMENT == 'production':
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Media files configuration
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# OpenAI API Configuration
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
+
 CRONJOBS = [
     ('*/1 * * * *', f'/home/red/Documents/ProjectDict/django-react-auth/backend/venv/bin/python /home/red/Documents/ProjectDict/django-react-auth/backend/manage.py execute_scheduled_calls >> /home/red/cron.log 2>&1'),
 ]
