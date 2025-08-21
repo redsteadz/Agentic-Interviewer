@@ -66,7 +66,7 @@ class PhoneNumberAdmin(admin.ModelAdmin):
 
 @admin.register(InterviewCall)
 class InterviewCallAdmin(admin.ModelAdmin):
-    list_display = ['customer_number', 'user', 'assistant', 'status', 'outcome_status', 'cost', 'duration_formatted', 'created_at']
+    list_display = ['customer_number', 'user', 'assistant', 'status', 'outcome_status', 'cost', 'duration_formatted', 'created_at', 'recording_url', 'recording_file']
     list_filter = ['status', 'outcome_status', 'created_at']
     search_fields = ['customer_number', 'user__username', 'vapi_call_id', 'assistant__name']
     readonly_fields = ['vapi_call_id', 'created_at', 'started_at', 'ended_at', 'duration_formatted']
@@ -81,7 +81,7 @@ class InterviewCallAdmin(admin.ModelAdmin):
             'fields': ('created_at', 'started_at', 'ended_at', 'duration_seconds', 'duration_formatted')
         }),
         ('Results', {
-            'fields': ('cost', 'end_reason', 'transcript_text'),
+            'fields': ('cost', 'end_reason', 'transcript_text', 'processed_transcript'),
             'classes': ('collapse',)
         }),
         ('Technical Data', {

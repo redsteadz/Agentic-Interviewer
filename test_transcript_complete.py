@@ -16,8 +16,8 @@ PROCESS_TRANSCRIPT_URL = f"{BASE_URL}/process-transcript/"
 
 # Test user credentials - adjust password if needed
 TEST_USER = {
-    "username": "Mehroz",
-    "password": "admin"
+    "username": "hellow",
+    "password": "Strong123"
 }
 
 def get_auth_token():
