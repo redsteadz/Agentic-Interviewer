@@ -9,11 +9,14 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include("api.urls")),
-    # Serve React app for all other routes (catch-all)
-    re_path(r'^.*$', TemplateView.as_view(template_name='index.html'), name='home'),
 ]
 
-# Serve static and media files in development
+# Serve static and media files in development (BEFORE catch-all route)
 if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+# Serve React app for all other routes (catch-all) - MUST BE LAST
+urlpatterns += [
+    re_path(r'^.*$', TemplateView.as_view(template_name='index.html'), name='home'),
+]

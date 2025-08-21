@@ -428,24 +428,69 @@ export default function Dashboard() {
                           <span className="font-medium text-sm">Transcript</span>
                         </div>
                         {call.has_recording && call.recording_file_url && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const audio = new Audio(call.recording_file_url);
-                              audio.play().catch(err => {
-                                console.error('Failed to play audio:', err);
-                                alert('Failed to play recording. Please try again.');
-                              });
-                            }}
-                            className="flex items-center gap-1"
-                          >
-                            <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                            </svg>
-                            Play
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                console.log('🎵 Playing recording:', call.recording_file_url);
+                                
+                                const audio = new Audio(call.recording_file_url);
+                                
+                                // Add event listeners for debugging
+                                audio.addEventListener('loadstart', () => console.log('🔄 Audio loading started'));
+                                audio.addEventListener('loadeddata', () => console.log('✅ Audio data loaded'));
+                                audio.addEventListener('canplay', () => console.log('✅ Audio can start playing'));
+                                audio.addEventListener('playing', () => console.log('▶️ Audio is playing'));
+                                audio.addEventListener('ended', () => console.log('⏹️ Audio playback ended'));
+                                audio.addEventListener('error', (err) => console.error('❌ Audio error:', err));
+                                
+                                // Try to play
+                                audio.play().then(() => {
+                                  console.log('✅ Audio play() promise resolved');
+                                }).catch(err => {
+                                  console.error('❌ Failed to play audio:', err);
+                                  console.error('Error details:', {
+                                    name: err.name,
+                                    message: err.message,
+                                    code: err.code
+                                  });
+                                  alert(`Failed to play recording: ${err.message}`);
+                                });
+                              }}
+                              className="flex items-center gap-1"
+                            >
+                              <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                              </svg>
+                              Play
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                console.log('📥 Downloading recording:', call.recording_file_url);
+                                
+                                // Create download link
+                                const link = document.createElement('a');
+                                link.href = call.recording_file_url;
+                                link.download = `call_recording_${call.customer_number}_${new Date(call.created_at).toISOString().split('T')[0]}.wav`;
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                
+                                console.log('✅ Download triggered');
+                              }}
+                              className="flex items-center gap-1"
+                            >
+                              <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                              </svg>
+                              Download
+                            </Button>
+                          </div>
                         )}
                       </div>
                       <div className="bg-muted/30 rounded-md p-3 max-h-64 overflow-y-auto">
@@ -586,24 +631,69 @@ export default function Dashboard() {
                   <CardHeader className="flex flex-row items-center justify-between space-y-0">
                     <CardTitle className="text-lg">Transcript</CardTitle>
                     {selectedCall.has_recording && selectedCall.recording_file_url && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const audio = new Audio(selectedCall.recording_file_url);
-                          audio.play().catch(err => {
-                            console.error('Failed to play audio:', err);
-                            alert('Failed to play recording. Please try again.');
-                          });
-                        }}
-                        className="flex items-center gap-2"
-                      >
-                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                        </svg>
-                        Play Recording
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            console.log('🎵 Playing recording:', selectedCall.recording_file_url);
+                            
+                            const audio = new Audio(selectedCall.recording_file_url);
+                            
+                            // Add event listeners for debugging
+                            audio.addEventListener('loadstart', () => console.log('🔄 Audio loading started'));
+                            audio.addEventListener('loadeddata', () => console.log('✅ Audio data loaded'));
+                            audio.addEventListener('canplay', () => console.log('✅ Audio can start playing'));
+                            audio.addEventListener('playing', () => console.log('▶️ Audio is playing'));
+                            audio.addEventListener('ended', () => console.log('⏹️ Audio playback ended'));
+                            audio.addEventListener('error', (err) => console.error('❌ Audio error:', err));
+                            
+                            // Try to play
+                            audio.play().then(() => {
+                              console.log('✅ Audio play() promise resolved');
+                            }).catch(err => {
+                              console.error('❌ Failed to play audio:', err);
+                              console.error('Error details:', {
+                                name: err.name,
+                                message: err.message,
+                                code: err.code
+                              });
+                              alert(`Failed to play recording: ${err.message}`);
+                            });
+                          }}
+                          className="flex items-center gap-2"
+                        >
+                          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                          </svg>
+                          Play
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            console.log('📥 Downloading recording:', selectedCall.recording_file_url);
+                            
+                            // Create download link
+                            const link = document.createElement('a');
+                            link.href = selectedCall.recording_file_url;
+                            link.download = `call_recording_${selectedCall.customer_number}_${new Date(selectedCall.created_at).toISOString().split('T')[0]}.wav`;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            
+                            console.log('✅ Download triggered');
+                          }}
+                          className="flex items-center gap-2"
+                        >
+                          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                          Download
+                        </Button>
+                      </div>
                     )}
                   </CardHeader>
                   <CardContent>

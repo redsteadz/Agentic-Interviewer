@@ -315,7 +315,7 @@ class CreateAssistantView(APIView):
                 "silenceTimeoutSeconds": 30,
                 "maxDurationSeconds": 1800,
                 "voicemailDetection": {"provider": "vapi"},
-                "recordingEnabled": False,
+                "recordingEnabled": True,
                 "clientMessages": [],
                 "serverMessages": [],
             }
@@ -513,12 +513,12 @@ IMPORTANT INSTRUCTIONS:
 """
 
         try:
-            # Use OpenAI to process the transcript (v0.28.1 API)
+            # Use OpenAI to process the transcript (v1.0+ API)
             import openai
             
-            openai.api_key = openai_api_key
+            client = openai.OpenAI(api_key=openai_api_key)
             
-            response = openai.ChatCompletion.create(
+            response = client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a professional transcript analysis agent."},
@@ -1172,6 +1172,9 @@ class CallDetailView(APIView):
                         if isinstance(item, dict)
                     ]
                 )
+            elif isinstance(call_data["transcript"], str):
+                # Handle string format transcripts from VAPI
+                call.transcript_text = call_data["transcript"]
 
         if call_data.get("cost"):
             call.cost = call_data["cost"]
@@ -1192,9 +1195,31 @@ class CallDetailView(APIView):
         call.outcome_status = call_outcome["status"]
         call.outcome_description = call_outcome["description"]
 
-        # Store recording URL from VAPI
+        # Store recording URL from VAPI (check multiple possible locations)
+        recording_url = None
+        
+        # Check for direct recording URL
         if call_data.get("recordingUrl"):
-            call.recording_url = call_data["recordingUrl"]
+            recording_url = call_data["recordingUrl"]
+        
+        # Check for artifact.recording structure
+        elif call_data.get("artifact", {}).get("recording"):
+            artifact_recording = call_data["artifact"]["recording"]
+            # Check for mono recording
+            if artifact_recording.get("mono", {}).get("recordingUrl"):
+                recording_url = artifact_recording["mono"]["recordingUrl"]
+            # Check for stereo recording
+            elif artifact_recording.get("stereo", {}).get("recordingUrl"):
+                recording_url = artifact_recording["stereo"]["recordingUrl"]
+            # Check for any recording URL in the artifact
+            elif isinstance(artifact_recording, dict):
+                for key, value in artifact_recording.items():
+                    if isinstance(value, dict) and value.get("recordingUrl"):
+                        recording_url = value["recordingUrl"]
+                        break
+        
+        if recording_url:
+            call.recording_url = recording_url
             
         call.save()
         
