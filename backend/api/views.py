@@ -516,7 +516,11 @@ IMPORTANT INSTRUCTIONS:
             # Use OpenAI to process the transcript (v1.0+ API)
             import openai
             
-            client = openai.OpenAI(api_key=openai_api_key)
+            # Create client with explicit parameters only
+            client = openai.OpenAI(
+                api_key=openai_api_key,
+                timeout=30.0
+            )
             
             response = client.chat.completions.create(
                 model="gpt-4",
