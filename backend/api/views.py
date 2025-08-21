@@ -455,6 +455,56 @@ class CreateAssistantView(APIView):
         
         return "\n".join(articles)
 
+    def extract_article_titles(self, knowledge_text):
+        """Extract article titles from knowledge text"""
+        titles = []
+        
+        # Look for different title patterns in the knowledge text
+        lines = knowledge_text.split('\n')
+        
+        for i, line in enumerate(lines):
+            line = line.strip()
+            
+            # Pattern 1: "=== ARTICLE X ===" followed by title
+            if line.startswith('=== ARTICLE') and line.endswith('==='):
+                # Check if next line is the title
+                if i + 1 < len(lines):
+                    next_line = lines[i + 1].strip()
+                    if next_line and not next_line.startswith('==='):
+                        titles.append(next_line)
+            
+            # Pattern 2: Direct article headers like "Article 1: Title"
+            elif line.startswith('Article ') and ':' in line:
+                title_part = line.split(':', 1)[1].strip()
+                if title_part:
+                    titles.append(title_part)
+            
+            # Pattern 3: Look for prominent headings (lines that are short and seem like titles)
+            elif len(line) > 10 and len(line) < 100 and not line.endswith('.'):
+                # Check if this looks like a title (no periods, capitalized, etc.)
+                if line[0].isupper() and '.' not in line and len(line.split()) <= 10:
+                    titles.append(line)
+        
+        # If no titles found, try to extract from article content
+        if not titles:
+            articles = knowledge_text.split('=== ARTICLE')
+            for i, article in enumerate(articles[1:], 1):  # Skip first empty part
+                lines_in_article = article.split('\n')
+                for line in lines_in_article:
+                    line = line.strip()
+                    if line and not line.startswith('===') and len(line) > 5:
+                        titles.append(f"Article {i}")
+                        break
+        
+        # Format titles for the prompt
+        if titles:
+            numbered_titles = []
+            for i, title in enumerate(titles, 1):
+                numbered_titles.append(f"Article {i}: {title}")
+            return '\n'.join(numbered_titles)
+        else:
+            return "No specific article titles found - use content-based titles"
+
     def process_transcript_with_articles(self, transcript_text, knowledge_text, user=None):
         """Process transcript using OpenAI to extract structured article information"""
         if not transcript_text or not knowledge_text:
@@ -479,8 +529,9 @@ class CreateAssistantView(APIView):
         if not openai_api_key:
             return {"error": "OpenAI API key not available"}
         
-        # Format articles for processing
+        # Format articles for processing and extract titles
         formatted_articles = self.format_articles_for_interview(knowledge_text)
+        article_titles = self.extract_article_titles(knowledge_text)
         
         # Create OpenAI prompt for transcript processing
         processing_prompt = f"""
@@ -496,19 +547,29 @@ Your task is to analyze the transcript and extract structured information for ea
 📝 INTERVIEW TRANSCRIPT:
 {transcript_text}
 
-For each article that was discussed in the transcript, provide the following structured output:
+For each article that was discussed in the transcript, provide the following structured output (use EXACT titles provided):
 
-**Article [Number]:**
-**Article [Number] Title:** [Extract or create a clear title for the article]
-**Article [Number] Summary:** [Provide a concise 2-3 sentence summary of the article's main points]
-**Article [Number] Keyword Phrase:** [Identify 1-3 key phrases or terms from the article]
-**Article [Number] Transcript:** [Document the candidate's responses, insights, and discussion about this specific article]
+Article [Number]:
+Article [Number] Title: [Use the exact title from the knowledge base - do not modify]
+Article [Number] Summary: [Provide a concise 2-3 sentence summary of the article's main points]
+Article [Number] Keyword Phrase: [Identify 1-3 key phrases or terms from the article]
+Article [Number] Transcript: [Document the candidate's responses, insights, and discussion about this specific article]
+
+AVAILABLE ARTICLE TITLES:
+{article_titles}
+
+CRITICAL NUMBERING INSTRUCTIONS:
+- Number articles sequentially starting from 1 (Article 1, Article 2, Article 3, etc.)
+- Do NOT use the original article numbers from the knowledge base
+- Use consecutive numbering based on the order discussed in the interview
+- If only 2 articles are discussed, use "Article 1" and "Article 2" (not Article 1 and Article 3)
 
 IMPORTANT INSTRUCTIONS:
+- Use the EXACT article titles provided in the "AVAILABLE ARTICLE TITLES" section
 - Only include articles that were actually discussed in the transcript
 - If an article was not discussed, do not include it in your output
 - Extract the candidate's actual responses and insights from the transcript
-- Maintain the exact format above for each article
+- Use plain text format with colons (NO bold formatting)
 - If no articles were discussed, state "No articles were discussed in this interview"
 """
 

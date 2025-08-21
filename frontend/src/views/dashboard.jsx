@@ -28,6 +28,8 @@ export default function Dashboard() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [transcriptSearchTerm, setTranscriptSearchTerm] = useState("")
+  const [showRawTranscript, setShowRawTranscript] = useState(false)
+  const [showRawTranscriptDialog, setShowRawTranscriptDialog] = useState(false)
   
   const navigate = useNavigate()
 
@@ -82,12 +84,14 @@ export default function Dashboard() {
   // Filter transcripts based on search
   useEffect(() => {
     const callsWithTranscripts = calls.filter(call => 
-      call.transcript_text && call.transcript_text.trim() !== ""
+      (call.processed_transcript && call.processed_transcript.trim() !== "") ||
+      (call.transcript_text && call.transcript_text.trim() !== "")
     )
     
     let filtered = callsWithTranscripts.filter(call => {
+      const searchContent = call.processed_transcript || call.transcript_text || '';
       const matchesSearch = transcriptSearchTerm === "" ||
-        call.transcript_text?.toLowerCase().includes(transcriptSearchTerm.toLowerCase()) ||
+        searchContent.toLowerCase().includes(transcriptSearchTerm.toLowerCase()) ||
         call.customer_number?.includes(transcriptSearchTerm) ||
         (call.assistant_name || call.assistant?.name || '')?.toLowerCase().includes(transcriptSearchTerm.toLowerCase())
       
@@ -493,10 +497,32 @@ export default function Dashboard() {
                           </div>
                         )}
                       </div>
-                      <div className="bg-muted/30 rounded-md p-3 max-h-64 overflow-y-auto">
-                        <pre className="text-sm whitespace-pre-wrap font-sans">
-                          {call.transcript_text || 'No transcript available'}
-                        </pre>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          {call.processed_transcript && (
+                            <div className="text-xs text-green-600 font-medium bg-green-50 px-2 py-1 rounded">
+                              {showRawTranscript ? '📝 Original Transcript' : '✅ AI Processed Transcript'}
+                            </div>
+                          )}
+                          {call.processed_transcript && call.transcript_text && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowRawTranscript(!showRawTranscript)}
+                              className="text-xs"
+                            >
+                              {showRawTranscript ? 'Show AI Processed' : 'Show Original'}
+                            </Button>
+                          )}
+                        </div>
+                        <div className="bg-muted/30 rounded-md p-3 max-h-64 overflow-y-auto">
+                          <pre className="text-sm whitespace-pre-wrap font-sans">
+                            {showRawTranscript 
+                              ? (call.transcript_text || 'No original transcript available')
+                              : (call.processed_transcript || call.transcript_text || 'No transcript available')
+                            }
+                          </pre>
+                        </div>
                       </div>
                       {call.outcome_description && (
                         <div className="text-sm text-muted-foreground">
@@ -630,9 +656,20 @@ export default function Dashboard() {
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0">
                     <CardTitle className="text-lg">Transcript</CardTitle>
-                    {selectedCall.has_recording && selectedCall.recording_file_url && (
-                      <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2">
+                      {selectedCall.processed_transcript && selectedCall.transcript_text && (
                         <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowRawTranscriptDialog(!showRawTranscriptDialog)}
+                          className="text-xs"
+                        >
+                          {showRawTranscriptDialog ? 'Show AI Processed' : 'Show Original'}
+                        </Button>
+                      )}
+                      {selectedCall.has_recording && selectedCall.recording_file_url && (
+                        <>
+                          <Button
                           size="sm"
                           variant="outline"
                           onClick={(e) => {
@@ -693,17 +730,29 @@ export default function Dashboard() {
                           </svg>
                           Download
                         </Button>
-                      </div>
-                    )}
+                        </>
+                      )}
+                    </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="bg-muted/30 rounded-md p-4 max-h-96 overflow-y-auto">
-                      <pre className="text-sm whitespace-pre-wrap font-sans">
-                        {selectedCall.transcript_text || (Array.isArray(selectedCall.transcript) 
-                          ? selectedCall.transcript.map(item => `${item.role}: ${item.message}`).join('\n')
-                          : selectedCall.transcript
-                        )}
-                      </pre>
+                    <div className="space-y-3">
+                      {selectedCall.processed_transcript && (
+                        <div className="text-xs text-green-600 font-medium bg-green-50 px-2 py-1 rounded inline-block">
+                          {showRawTranscriptDialog ? '📝 Original Transcript' : '✅ AI Processed Transcript'}
+                        </div>
+                      )}
+                      <div className="bg-muted/30 rounded-md p-4 max-h-96 overflow-y-auto">
+                        <pre className="text-sm whitespace-pre-wrap font-sans">
+                          {showRawTranscriptDialog 
+                            ? (selectedCall.transcript_text || (Array.isArray(selectedCall.transcript) 
+                                ? selectedCall.transcript.map(item => `${item.role}: ${item.message}`).join('\n')
+                                : selectedCall.transcript) || 'No original transcript available')
+                            : (selectedCall.processed_transcript || selectedCall.transcript_text || (Array.isArray(selectedCall.transcript) 
+                                ? selectedCall.transcript.map(item => `${item.role}: ${item.message}`).join('\n')
+                                : selectedCall.transcript) || 'No transcript available')
+                          }
+                        </pre>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
