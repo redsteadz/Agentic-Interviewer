@@ -59,6 +59,8 @@ urlpatterns = [
     path("elevenlabs-voices/", views.ElevenLabsVoicesView.as_view(), name="elevenlabs_voices"),
     # Transcript processing endpoint
     path("process-transcript/", views.ProcessTranscriptView.as_view(), name="process_transcript"),
+    # VAPI webhook endpoint
+    path("webhook/vapi/", views.VapiWebhookView.as_view(), name="vapi_webhook"),
     # Routes listing
     path("", views.getRoutes, name="routes"),
 ]

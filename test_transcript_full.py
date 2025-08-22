@@ -19,9 +19,9 @@ test_user = {
     "password2": "testpass123"
 }
 
-# Test data
+# Test data with timestamps
 test_data = {
-    "transcript": "Interviewer: Hello, let's talk about the recent developments in artificial intelligence. What are your thoughts on AI in healthcare? Candidate: I think AI has tremendous potential in healthcare, especially in diagnostics and personalized medicine. The ability to analyze large datasets could help doctors make better decisions. I've worked on projects involving medical image analysis.",
+    "transcript": "[2024-01-20 14:30:05] assistant: Hello, let's talk about the recent developments in artificial intelligence. What are your thoughts on AI in healthcare?\n[2024-01-20 14:30:25] user: I think AI has tremendous potential in healthcare, especially in diagnostics and personalized medicine. The ability to analyze large datasets could help doctors make better decisions. I've worked on projects involving medical image analysis.",
     "knowledge_text": "=== ARTICLE 1 ===\nArtificial Intelligence in Healthcare: Revolutionizing Patient Care\nAI technologies are transforming healthcare by enabling faster diagnoses, personalized treatments, and improved patient outcomes. Machine learning algorithms can analyze medical images, predict disease patterns, and assist in drug discovery.",
     "call_id": ""
 }

@@ -40,9 +40,48 @@ from datetime import datetime
 import logging
 import requests
 import json
+import hmac
+import hashlib
+import time
+from django.conf import settings
 
 load_dotenv()
 logger = logging.getLogger(__name__)
+
+# Webhook logging configuration
+WEBHOOK_LOG_FOLDER = os.path.join(settings.BASE_DIR, 'webhook_logs')
+if not os.path.exists(WEBHOOK_LOG_FOLDER):
+    os.makedirs(WEBHOOK_LOG_FOLDER, exist_ok=True)
+
+
+def save_webhook_event(event_type, event):
+    """
+    Save webhook event data to a JSON file for debugging and auditing
+    """
+    try:
+        os.makedirs(WEBHOOK_LOG_FOLDER, exist_ok=True)
+        
+        # Use event id or timestamp to create a unique filename
+        event_name = event_type.replace('.', '_')
+        event_id = event.get('id', 'no_event_id')
+        
+        # Add timestamp to make the filename even more unique
+        timestamp = time.strftime('%Y%m%d_%H%M%S')
+        
+        # Construct filename
+        filename = f"{event_name}_{event_id}_{timestamp}.json"
+        filepath = os.path.join(WEBHOOK_LOG_FOLDER, filename)
+        
+        # Write the event data to the file
+        with open(filepath, 'w') as f:
+            json.dump(event, f, indent=4)
+
+        logger.info(f"Webhook event saved to: {filepath}")
+        return filepath
+        
+    except Exception as e:
+        logger.error(f"Failed to save webhook event: {str(e)}")
+        return None
 
 
 class MyTokenObtainPairView(TokenObtainPairView):
@@ -79,6 +118,8 @@ def getRoutes(request):
         "/api/execute-scheduled-calls/",
         "/api/analyze-website/",
         "/api/elevenlabs-voices/",
+        "/api/process-transcript/",
+        "/api/webhook/vapi/",
     ]
     return Response(routes)
 
@@ -2511,3 +2552,223 @@ class ProcessTranscriptView(APIView):
                 {"error": f"Failed to process transcript: {str(e)}"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+class VapiWebhookView(APIView):
+    """
+    Handle webhooks from VAPI for real-time call status updates
+    """
+    permission_classes = [AllowAny]  # VAPI webhooks don't include user auth
+    
+    def post(self, request):
+        """
+        Handle VAPI webhook events:
+        - call.started
+        - call.ended
+        - call.failed
+        - transcript.updated
+        - recording.ready
+        """
+        try:
+            # Validate webhook signature if secret is configured
+            if not self.validate_webhook_signature(request):
+                logger.warning("Invalid webhook signature")
+                return Response({"error": "Invalid signature"}, status=status.HTTP_401_UNAUTHORIZED)
+            
+            webhook_data = request.data
+            event_type = webhook_data.get('type')
+            call_data = webhook_data.get('call', {})
+            vapi_call_id = call_data.get('id')
+            
+            logger.info(f"Received VAPI webhook: {event_type} for call {vapi_call_id}")
+            
+            # Save webhook event to file for debugging and auditing
+            save_webhook_event(event_type or 'unknown_event', webhook_data)
+            
+            if not vapi_call_id:
+                logger.warning("Webhook received without call ID")
+                return Response({"error": "Missing call ID"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Find the call in our database with security validation
+            try:
+                call = InterviewCall.objects.select_related('user', 'assistant').get(
+                    vapi_call_id=vapi_call_id
+                )
+                
+                # Security validation: Verify call ownership and assistant relationship
+                if not self.validate_call_ownership(call, call_data):
+                    logger.error(f"Security violation: Invalid call ownership for {vapi_call_id}")
+                    return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+                    
+            except InterviewCall.DoesNotExist:
+                logger.warning(f"Call {vapi_call_id} not found in database")
+                return Response({"error": "Call not found"}, status=status.HTTP_404_NOT_FOUND)
+            
+            # Handle different webhook events
+            if event_type == 'call.started':
+                self.handle_call_started(call, call_data)
+            elif event_type == 'call.ended':
+                self.handle_call_ended(call, call_data)
+            elif event_type == 'call.failed':
+                self.handle_call_failed(call, call_data)
+            elif event_type == 'transcript.updated':
+                self.handle_transcript_updated(call, call_data)
+            elif event_type == 'recording.ready':
+                self.handle_recording_ready(call, call_data)
+            else:
+                logger.info(f"Unhandled webhook event type: {event_type}")
+            
+            return Response({"status": "success"}, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error processing VAPI webhook: {str(e)}")
+            return Response(
+                {"error": "Webhook processing failed"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def handle_call_started(self, call, call_data):
+        """Handle call.started webhook event"""
+        logger.info(f"Call {call.vapi_call_id} started")
+        
+        call.status = "in-progress"
+        if call_data.get("startedAt"):
+            try:
+                call.started_at = datetime.fromisoformat(
+                    call_data["startedAt"].replace("Z", "+00:00")
+                )
+            except:
+                pass
+        
+        call.raw_call_data = call_data
+        call.save()
+    
+    def handle_call_ended(self, call, call_data):
+        """Handle call.ended webhook event"""
+        logger.info(f"Call {call.vapi_call_id} ended")
+        
+        # Use existing method to update call data
+        call_detail_view = CallDetailView()
+        call = call_detail_view.update_call_from_vapi_data(call, call_data)
+        
+        # Trigger automatic transcript processing if conditions are met
+        if (call.transcript_text and 
+            call.assistant and 
+            call.assistant.knowledge_text and
+            not call.processed_transcript):
+            call_detail_view.auto_process_transcript(call)
+    
+    def handle_call_failed(self, call, call_data):
+        """Handle call.failed webhook event"""
+        logger.info(f"Call {call.vapi_call_id} failed")
+        
+        call.status = "failed"
+        call.outcome_status = "failed"
+        
+        if call_data.get("endedAt"):
+            try:
+                call.ended_at = datetime.fromisoformat(
+                    call_data["endedAt"].replace("Z", "+00:00")
+                )
+            except:
+                pass
+        
+        call.end_reason = call_data.get("endReason", "Unknown failure")
+        call.raw_call_data = call_data
+        call.save()
+    
+    def handle_transcript_updated(self, call, call_data):
+        """Handle transcript.updated webhook event for real-time updates"""
+        logger.info(f"Transcript updated for call {call.vapi_call_id}")
+        
+        if call_data.get("transcript"):
+            call.transcript = call_data["transcript"]
+            if isinstance(call_data["transcript"], list):
+                call.transcript_text = "\n".join(
+                    [
+                        f"[{item.get('timestamp', 'Unknown')}] {item.get('role', 'Unknown')}: {item.get('message', '')}"
+                        for item in call_data["transcript"]
+                        if isinstance(item, dict)
+                    ]
+                )
+        
+        call.raw_call_data = call_data
+        call.save()
+    
+    def handle_recording_ready(self, call, call_data):
+        """Handle recording.ready webhook event"""
+        logger.info(f"Recording ready for call {call.vapi_call_id}")
+        
+        if call_data.get("recordingUrl"):
+            call.recording_url = call_data["recordingUrl"]
+        
+        call.raw_call_data = call_data
+        call.save()
+    
+    def validate_webhook_signature(self, request):
+        """
+        Validate VAPI webhook signature for security
+        Returns True if signature is valid or no secret is configured
+        """
+        webhook_secret = os.getenv('VAPI_WEBHOOK_SECRET')
+        if not webhook_secret:
+            # If no secret is configured, skip validation (for development)
+            logger.info("No VAPI webhook secret configured, skipping signature validation")
+            return True
+        
+        # Get signature from headers
+        signature = request.META.get('HTTP_X_VAPI_SIGNATURE')
+        if not signature:
+            logger.warning("No X-Vapi-Signature header found")
+            return False
+        
+        # Get request body
+        body = request.body
+        
+        # Calculate expected signature
+        expected_signature = hmac.new(
+            webhook_secret.encode('utf-8'),
+            body,
+            hashlib.sha256
+        ).hexdigest()
+        
+        # Compare signatures
+        return hmac.compare_digest(signature, expected_signature)
+    
+    def validate_call_ownership(self, call, call_data):
+        """
+        Validate that the webhook call data matches our database call
+        This prevents cross-user data leakage and ensures call integrity
+        """
+        try:
+            # Extract VAPI data from webhook
+            vapi_assistant_id = call_data.get('assistantId')
+            vapi_phone_number_id = call_data.get('phoneNumberId')
+            
+            # Security Check 1: Verify assistant belongs to the same user as the call
+            if call.assistant.vapi_assistant_id != vapi_assistant_id:
+                logger.error(f"Assistant ID mismatch: DB={call.assistant.vapi_assistant_id}, VAPI={vapi_assistant_id}")
+                return False
+            
+            # Security Check 2: Verify assistant belongs to the call's user  
+            if call.assistant.user_id != call.user_id:
+                logger.error(f"User mismatch: Call user={call.user_id}, Assistant user={call.assistant.user_id}")
+                return False
+            
+            # Security Check 3: Verify phone number ownership (if provided)
+            if vapi_phone_number_id and call.phone_number.vapi_phone_number_id != vapi_phone_number_id:
+                logger.error(f"Phone number mismatch: DB={call.phone_number.vapi_phone_number_id}, VAPI={vapi_phone_number_id}")
+                return False
+            
+            # Security Check 4: Verify phone number belongs to same user
+            if call.phone_number.user_id != call.user_id:
+                logger.error(f"Phone user mismatch: Call user={call.user_id}, Phone user={call.phone_number.user_id}")
+                return False
+            
+            # All checks passed
+            logger.info(f"Call ownership validated for user {call.user.username} (ID: {call.user_id})")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error validating call ownership: {str(e)}")
+            return False
