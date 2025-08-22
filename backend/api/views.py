@@ -1,19 +1,16 @@
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from django.contrib.auth.models import User
+from django.http import JsonResponse
 from rest_framework import status, generics
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.authentication import SessionAuthentication
-
-# Custom authentication class that disables CSRF for webhooks
-class CsrfExemptSessionAuthentication(SessionAuthentication):
-    def enforce_csrf(self, request):
-        return  # To not perform the csrf check previously happening
-from django.contrib.auth.models import User
-from django.http import JsonResponse
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.views import TokenObtainPairView
 from api.serializer import (
     CampaignSerializer,
     CreateCampaignSerializer,
@@ -29,7 +26,6 @@ from api.serializer import (
     ScheduledCallSerializer,
     CreateScheduledCallSerializer,
 )
-from rest_framework_simplejwt.views import TokenObtainPairView
 from .models import (
     APIConfiguration,
     Campaign,
@@ -42,11 +38,15 @@ import json
 import logging
 import requests
 import os
+import time
 from dotenv import load_dotenv
 from twilio.rest import Client
 from datetime import datetime
-import logging
-import requests
+
+# Custom authentication class that disables CSRF for webhooks
+class CsrfExemptSessionAuthentication(SessionAuthentication):
+    def enforce_csrf(self, request):
+        return  # To not perform the csrf check previously happening
 import json
 import hmac
 import hashlib
@@ -818,7 +818,8 @@ class VapiPhoneNumbersView(APIView):
 
             phone_numbers = response.json()
 
-            # Create or update PhoneNumber objects for the user
+            # Create or update PhoneNumber objects for the user and enrich with assistant info
+            enriched_phone_numbers = []
             for number_data in phone_numbers:
                 phone_number_obj, created = PhoneNumber.objects.get_or_create(
                     user=request.user,
@@ -838,7 +839,18 @@ class VapiPhoneNumbersView(APIView):
                     phone_number_obj.is_active = True
                     phone_number_obj.save()
 
-            return Response({"success": True, "phone_numbers": phone_numbers})
+                # Enrich with assistant information
+                enriched_number = number_data.copy()
+                if phone_number_obj.assistant:
+                    enriched_number['assistant'] = phone_number_obj.assistant.vapi_assistant_id
+                    enriched_number['assistant_name'] = phone_number_obj.assistant.name
+                else:
+                    enriched_number['assistant'] = None
+                    enriched_number['assistant_name'] = None
+                    
+                enriched_phone_numbers.append(enriched_number)
+
+            return Response({"success": True, "phone_numbers": enriched_phone_numbers})
 
         except requests.exceptions.RequestException as e:
             logger.error(f"Error fetching phone numbers: {e}")
@@ -1036,6 +1048,133 @@ class PhoneNumberListView(generics.ListAPIView):
         if campaign_id:
             queryset = queryset.filter(campaign_id=campaign_id)
         return queryset
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class PhoneNumberDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [CsrfExemptSessionAuthentication, JWTAuthentication]
+    
+    def patch(self, request, phone_number_id):
+        """Update phone number assistant assignment"""
+        try:
+            # Get the phone number by vapi_phone_number_id
+            try:
+                phone_number = PhoneNumber.objects.get(
+                    vapi_phone_number_id=phone_number_id, user=request.user
+                )
+            except PhoneNumber.DoesNotExist:
+                return Response(
+                    {"error": "Phone number not found or does not belong to user"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Get user's API configuration
+            try:
+                config = APIConfiguration.objects.get(user=request.user)
+                if not config.is_vapi_configured:
+                    return Response(
+                        {"error": "Vapi API key not configured"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                vapi_key = config.vapi_api_key
+            except APIConfiguration.DoesNotExist:
+                return Response(
+                    {"error": "Vapi API key not configured"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            assistant_id = request.data.get('assistant') or request.data.get('assistant_id')
+            
+            # Validate assistant if provided
+            assistant = None
+            if assistant_id:
+                try:
+                    # First try to find by vapi_assistant_id, then by ID
+                    try:
+                        assistant = InterviewAssistant.objects.get(
+                            vapi_assistant_id=assistant_id, user=request.user
+                        )
+                    except InterviewAssistant.DoesNotExist:
+                        assistant = InterviewAssistant.objects.get(
+                            id=assistant_id, user=request.user
+                        )
+                except InterviewAssistant.DoesNotExist:
+                    return Response(
+                        {"error": "Assistant not found or does not belong to user"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+            # Update VAPI phone number with assistant assignment
+            headers = {
+                "Authorization": f"Bearer {vapi_key}",
+                "Content-Type": "application/json",
+            }
+
+            payload = {}
+            if assistant:
+                payload["assistantId"] = assistant.vapi_assistant_id
+            else:
+                # Remove assistant assignment
+                payload["assistantId"] = None
+
+            logger.info(f"Updating VAPI phone number {phone_number.vapi_phone_number_id} with assistant: {payload}")
+            
+            response = requests.patch(
+                f"https://api.vapi.ai/phone-number/{phone_number.vapi_phone_number_id}",
+                headers=headers,
+                json=payload
+            )
+
+            logger.info(f"VAPI phone number update response: {response.status_code}")
+
+            try:
+                response_data = response.json()
+                logger.info(f"VAPI phone number update response body: {response_data}")
+            except ValueError as e:
+                logger.error(f"Failed to parse JSON response: {e}")
+                return Response(
+                    {"error": f"Invalid JSON response from Vapi API: {response.text}"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+            if not response.ok:
+                error_message = (
+                    response_data.get("message", response.text)
+                    if response_data
+                    else response.text
+                )
+                logger.error(f"Vapi API error: {response.status_code} - {error_message}")
+                return Response(
+                    {"error": f"Vapi API error ({response.status_code}): {error_message}"},
+                    status=response.status_code,
+                )
+
+            # Update local phone number record
+            phone_number.assistant = assistant
+            phone_number.save()
+
+            logger.info(f"Phone number {phone_number.phone_number} assistant assignment updated")
+
+            return Response(
+                {
+                    "success": True,
+                    "phone_number": PhoneNumberSerializer(phone_number).data,
+                    "message": f"Assistant assignment updated for {phone_number.phone_number}"
+                }
+            )
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error updating phone number assistant: {e}")
+            return Response(
+                {"error": f"Vapi API error: {e}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        except Exception as e:
+            logger.error(f"Error updating phone number assistant: {str(e)}")
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class MakeCallView(APIView):
@@ -2568,8 +2707,6 @@ class ProcessTranscriptView(APIView):
             )
 
 
-
-
 @csrf_exempt
 def vapi_webhook_view(request):
     """
@@ -2641,7 +2778,7 @@ def vapi_webhook_view(request):
         
         # Find the call in our database with security validation
         try:
-            call = InterviewCall.objects.select_related('user', 'assistant').get(
+            call = InterviewCall.objects.select_related('user', 'assistant', 'phone_number').get(
                 vapi_call_id=vapi_call_id
             )
             
@@ -2651,8 +2788,11 @@ def vapi_webhook_view(request):
                 return JsonResponse({"error": "Unauthorized"}, status=401)
                 
         except InterviewCall.DoesNotExist:
-            logger.warning(f"Call {vapi_call_id} not found in database")
-            return JsonResponse({"error": "Call not found"}, status=404)
+            # This might be an inbound call - try to create InterviewCall record
+            call = create_inbound_call_record(call_data, vapi_call_id)
+            if call is None:
+                logger.warning(f"Could not create call record for {vapi_call_id}")
+                return JsonResponse({"error": "Call not found and could not create inbound call record"}, status=404)
         
         # Handle different webhook events
         if event_type == 'status-update':
@@ -2965,3 +3105,71 @@ def validate_call_ownership(call, call_data):
     except Exception as e:
         logger.error(f"Error validating call ownership: {str(e)}")
         return False
+
+def create_inbound_call_record(call_data, vapi_call_id):
+    """
+    Create InterviewCall record for inbound calls
+    This handles inbound calls where someone calls a phone number with an assigned assistant
+    """
+    try:
+        logger.info(f"Attempting to create inbound call record for {vapi_call_id}")
+        
+        # Extract phone number and assistant information from call data
+        phone_number_id = call_data.get('phoneNumberId')
+        assistant_id = call_data.get('assistantId')
+        customer_number = call_data.get('customer', {}).get('number')
+        call_type = call_data.get('type', 'inbound')
+        
+        if not phone_number_id:
+            logger.error(f"No phone number ID in call data for {vapi_call_id}")
+            return None
+        
+        # Find the phone number in our database
+        try:
+            phone_number = PhoneNumber.objects.select_related('user', 'assistant', 'campaign').get(
+                vapi_phone_number_id=phone_number_id
+            )
+            logger.info(f"Found phone number: {phone_number.phone_number} for user: {phone_number.user.username}")
+        except PhoneNumber.DoesNotExist:
+            logger.error(f"Phone number with VAPI ID {phone_number_id} not found in database")
+            return None
+        
+        # Get the assistant (either from call data or from phone number assignment)
+        assistant = None
+        if phone_number.assistant:
+            assistant = phone_number.assistant
+            logger.info(f"Using assigned assistant: {assistant.name}")
+        elif assistant_id:
+            # Try to find assistant by VAPI ID
+            try:
+                assistant = InterviewAssistant.objects.get(
+                    vapi_assistant_id=assistant_id,
+                    user=phone_number.user
+                )
+                logger.info(f"Found assistant by VAPI ID: {assistant.name}")
+            except InterviewAssistant.DoesNotExist:
+                logger.warning(f"Assistant with VAPI ID {assistant_id} not found for user {phone_number.user.username}")
+        
+        if not assistant:
+            logger.error(f"No assistant found for inbound call to {phone_number.phone_number}")
+            return None
+        
+        # Create the InterviewCall record
+        call = InterviewCall.objects.create(
+            user=phone_number.user,
+            campaign=phone_number.campaign or assistant.campaign,
+            vapi_call_id=vapi_call_id,
+            assistant=assistant,
+            phone_number=phone_number,
+            customer_number=customer_number or 'Unknown',
+            status=call_data.get('status', 'queued'),
+            raw_call_data=call_data,
+            call_type='inbound'  # Mark as inbound call
+        )
+        
+        logger.info(f"Created inbound call record {call.id} for {vapi_call_id}")
+        return call
+        
+    except Exception as e:
+        logger.error(f"Error creating inbound call record: {str(e)}")
+        return None

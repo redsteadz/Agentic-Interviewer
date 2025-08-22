@@ -18,6 +18,7 @@ import {
   getTwilioPhoneNumbers,
   getVapiPhoneNumbers,
   registerPhoneNumber,
+  updatePhoneNumber,
   makeCall,
   getCallDetails,
   getCalls,
@@ -526,6 +527,30 @@ For EACH article, follow these steps IN ORDER:
       }
     } catch (error) {
       setPhoneMessage(`Error: ${error.response?.data?.error || error.message}`);
+    }
+  };
+
+  // Assistant assignment to phone number
+  const handleAssignAssistant = async (phoneNumberId, assistantId) => {
+    setPhoneLoading(true);
+    setPhoneMessage('');
+    
+    try {
+      const response = await updatePhoneNumber(phoneNumberId, {
+        assistant: assistantId
+      });
+      
+      if (response.data.success) {
+        const assignedAssistant = assistants.find(a => a.vapi_assistant_id === assistantId);
+        setPhoneMessage(`✅ Assistant "${assignedAssistant?.name || 'Unknown'}" assigned successfully!`);
+        await loadVapiNumbers(); // Refresh to show updated assignment
+      } else {
+        setPhoneMessage(`Error: ${response.data.error || 'Failed to assign assistant'}`);
+      }
+    } catch (error) {
+      setPhoneMessage(`Error: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setPhoneLoading(false);
     }
   };
 
@@ -1802,25 +1827,68 @@ Maintain high energy and evaluate both sales acumen and phone presence.`
               {vapiNumbers.length > 0 && (
                 <div className="space-y-2">
                   <h3 className="font-semibold">Available Vapi Phone Numbers</h3>
-                  <div className="space-y-2">
+                  <div className="space-y-4">
                     {vapiNumbers.map((number) => (
-                      <div key={number.id} className="p-3 border rounded">
-                        <p><strong>ID:</strong> {number.id}</p>
-                        <p><strong>Number:</strong> {number.number}</p>
-                        <Button
-                          size="sm"
-                          className="mt-2"
-                          onClick={() => {
-                            setCallForm(prev => ({
-                              ...prev,
-                              twilio_phone_number_id: number.id
-                            }));
-                            setCallMessage(`✅ Phone number "${number.number}" is now selected for calls!`);
-                            setTimeout(() => setCallMessage(''), 3000);
-                          }}
-                        >
-                          Use for Calls
-                        </Button>
+                      <div key={number.id} className="p-4 border rounded-lg space-y-3">
+                        <div className="flex justify-between items-start">
+                          <div className="space-y-1">
+                            <p><strong>ID:</strong> {number.id}</p>
+                            <p><strong>Number:</strong> {number.number}</p>
+                            {number.assistant_name && (
+                              <p><strong>Assigned Assistant:</strong> {number.assistant_name}</p>
+                            )}
+                            {!number.assistant_name && (
+                              <p className="text-gray-500 italic">No assistant assigned</p>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Assistant Assignment Section */}
+                        <div className="space-y-2">
+                          <Label htmlFor={`assistant-select-${number.id}`}>Assign Assistant for Inbound Calls</Label>
+                          <div className="flex gap-2">
+                            <select
+                              id={`assistant-select-${number.id}`}
+                              className="flex-1 border border-gray-300 rounded-md px-3 py-2"
+                              defaultValue={number.assistant || ''}
+                              onChange={(e) => {
+                                const assistantId = e.target.value;
+                                if (assistantId) {
+                                  handleAssignAssistant(number.id, assistantId);
+                                }
+                              }}
+                              disabled={phoneLoading}
+                            >
+                              <option value="">Select an assistant...</option>
+                              {assistants.map((assistant) => (
+                                <option key={assistant.id} value={assistant.vapi_assistant_id}>
+                                  {assistant.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            When someone calls this number, the selected assistant will handle the call
+                          </p>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setCallForm(prev => ({
+                                ...prev,
+                                twilio_phone_number_id: number.id
+                              }));
+                              setCallMessage(`✅ Phone number "${number.number}" is now selected for calls!`);
+                              setTimeout(() => setCallMessage(''), 3000);
+                            }}
+                          >
+                            Use for Outbound Calls
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>

@@ -48,6 +48,10 @@ export const getMyPhoneNumbers = (campaignId = null) => {
     const params = campaignId ? { campaign_id: campaignId } : {};
     return api.get('my-phone-numbers/', { params });
 };
+export const updatePhoneNumber = (phoneNumberId, data) => {
+    const api = useAxios();
+    return api.patch(`phone-number/${phoneNumberId}/`, data);
+};
 
 // Call endpoints
 export const makeCall = (data) => {

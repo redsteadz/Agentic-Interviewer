@@ -44,6 +44,11 @@ urlpatterns = [
         views.PhoneNumberListView.as_view(),
         name="my_phone_numbers",
     ),
+    path(
+        "phone-number/<str:phone_number_id>/",
+        views.PhoneNumberDetailView.as_view(),
+        name="phone_number_detail",
+    ),
     # Call endpoints
     path("make-call/", views.MakeCallView.as_view(), name="make_call"),
     path("call/<str:call_id>/", views.CallDetailView.as_view(), name="call_detail"),

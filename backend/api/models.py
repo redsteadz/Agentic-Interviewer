@@ -100,6 +100,14 @@ class PhoneNumber(models.Model):
         blank=True,
         null=True,
     )
+    assistant = models.ForeignKey(
+        'InterviewAssistant',
+        on_delete=models.SET_NULL,
+        related_name="assigned_phone_numbers",
+        blank=True,
+        null=True,
+        help_text="Assistant that will answer inbound calls to this number"
+    )
 
     phone_number = models.CharField(max_length=20)
     vapi_phone_number_id = models.CharField(max_length=255, unique=True)
@@ -126,6 +134,11 @@ class InterviewCall(models.Model):
         ("in-progress", "In Progress"),
         ("ended", "Ended"),
         ("failed", "Failed"),
+    ]
+
+    CALL_TYPE_CHOICES = [
+        ("outbound", "Outbound"),
+        ("inbound", "Inbound"),
     ]
 
     OUTCOME_STATUS_CHOICES = [
@@ -161,6 +174,9 @@ class InterviewCall(models.Model):
     customer_number = models.CharField(max_length=20)
 
     # Call details
+    call_type = models.CharField(
+        max_length=10, choices=CALL_TYPE_CHOICES, default="outbound"
+    )
     status = models.CharField(
         max_length=20, choices=CALL_STATUS_CHOICES, default="queued"
     )

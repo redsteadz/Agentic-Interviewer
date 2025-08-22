@@ -149,6 +149,7 @@ class CreateCampaignSerializer(serializers.Serializer):
 
 class PhoneNumberSerializer(serializers.ModelSerializer):
     campaign_name = serializers.CharField(source="campaign.name", read_only=True)
+    assistant_name = serializers.CharField(source="assistant.name", read_only=True)
     
     class Meta:
         model = PhoneNumber
@@ -162,6 +163,8 @@ class PhoneNumberSerializer(serializers.ModelSerializer):
             "is_active",
             "campaign",
             "campaign_name",
+            "assistant",
+            "assistant_name",
             "created_at",
             "updated_at",
         ]
