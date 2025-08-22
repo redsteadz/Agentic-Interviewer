@@ -60,7 +60,7 @@ urlpatterns = [
     # Transcript processing endpoint
     path("process-transcript/", views.ProcessTranscriptView.as_view(), name="process_transcript"),
     # VAPI webhook endpoint
-    path("webhook/vapi/", views.VapiWebhookView.as_view(), name="vapi_webhook"),
+    path("webhook/vapi/", views.vapi_webhook_view, name="vapi_webhook"),
     # Routes listing
     path("", views.getRoutes, name="routes"),
 ]
